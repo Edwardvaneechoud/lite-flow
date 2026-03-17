@@ -1,5 +1,5 @@
 [project]
-name = "lite-flow"
+name = "pyfloe"
 version = "0.1.0"
 description = "Zero-dependency lazy dataframe. Lo-fi data processing for Python."
 readme = "README.md"
@@ -22,18 +22,18 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/Edwardvaneechoud/lite-flow"
-Documentation = "https://github.com/Edwardvaneechoud/lite-flow#readme"
+Repository = "https://github.com/Edwardvaneechoud/pyfloe"
+Documentation = "https://edwardvaneechoud.github.io/pyfloe/"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lite_flow"]
+packages = ["src/pyfloe"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/lite_flow", "tests", "README.md", "pyproject.toml"]
+include = ["src/pyfloe", "tests", "README.md", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -48,10 +48,13 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
-"src/lite_flow/expr.py" = ["E402"]
+"src/pyfloe/expr.py" = ["E402"]
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.27",
 ]

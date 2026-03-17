@@ -16,7 +16,7 @@ import time
 
 import pytest
 
-from lite_flow import (
+from pyfloe import (
     col,
     lit,
     read_csv,

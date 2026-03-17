@@ -1,6 +1,6 @@
 """Comprehensive tests for the floe package."""
 
-from lite_flow import (
+from pyfloe import (
     ColumnSchema,
     Floe,
     LazySchema,

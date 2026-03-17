@@ -3,7 +3,7 @@ import os
 import tempfile
 from datetime import date, datetime, timedelta
 
-from lite_flow import Floe, col, read_csv
+from pyfloe import Floe, col, read_csv
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'test_data')
 
@@ -205,7 +205,7 @@ def test_filter_by_quarter():
 
 def test_filter_events_after_a_specific_datetime():
     cutoff = datetime(2024, 6, 1)
-    from lite_flow import lit
+    from pyfloe import lit
     result = (
         read_csv(f'{DATA_DIR}/events_dt.csv')
         .filter(col("ts") > lit(cutoff))
@@ -321,7 +321,7 @@ def test_row_number_ordered_by_datetime():
         {"id": 2, "ts": datetime(2024, 1, 1)},
         {"id": 3, "ts": datetime(2024, 2, 1)},
     ]
-    from lite_flow import row_number
+    from pyfloe import row_number
     result = Floe(data).with_column("rn",
         row_number().over(order_by="ts")
     ).to_pylist()
@@ -345,7 +345,7 @@ def test_datetime_survives_csv_write_read_roundtrip():
         os.unlink(path)
 
 def test_datetime_format_detection_various_formats():
-    from lite_flow.expr import _detect_datetime_format
+    from pyfloe.expr import _detect_datetime_format
     # ISO
     assert _detect_datetime_format(['2024-01-15', '2024-02-20', '2024-03-10']) == '%Y-%m-%d'
     # ISO with time
@@ -359,7 +359,7 @@ def test_datetime_format_detection_various_formats():
 
 def test_non_datetime_columns_with_numbers_not_misdetected():
     # Values like "12345" should be int, not datetime
-    from lite_flow.expr import _detect_datetime_format
+    from pyfloe.expr import _detect_datetime_format
     assert _detect_datetime_format(['100', '200', '300']) is None
     assert _detect_datetime_format(['3.14', '2.71', '1.41']) is None
 

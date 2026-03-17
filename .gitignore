@@ -26,6 +26,9 @@ coverage.xml
 *.swo
 *~
 
+# MkDocs
+site/
+
 # OS
 .DS_Store
 Thumbs.db

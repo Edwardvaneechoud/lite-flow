@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from lite_flow.core import Floe
-from lite_flow.expr import Col
+from pyfloe.core import Floe
+from pyfloe.expr import Col
 
 
 @pytest.fixture

@@ -3,7 +3,7 @@ import os
 import tempfile
 import tracemalloc
 
-from lite_flow import Floe, Stream, col, from_chunks, from_iter, when
+from pyfloe import Floe, Stream, col, from_chunks, from_iter, when
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
@@ -257,7 +257,7 @@ def test_stream_to_csv_sink():
         for i in range(50):
             yield {"id": i, "score": i * 1.5}
 
-    from lite_flow import read_csv
+    from pyfloe import read_csv
     with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as f:
         path = f.name
     try:
@@ -273,7 +273,7 @@ def test_stream_to_jsonl_sink():
         for i in range(20):
             yield {"event": f"e_{i}", "ts": i}
 
-    from lite_flow import read_jsonl
+    from pyfloe import read_jsonl
     with tempfile.NamedTemporaryFile(suffix='.jsonl', delete=False) as f:
         path = f.name
     try:
@@ -370,7 +370,7 @@ def test_from_iter_streams_with_constant_memory():
         tracemalloc.stop()
         delta_kb = (after - before) / 1024
 
-        from lite_flow import read_csv
+        from pyfloe import read_csv
         result = read_csv(path).to_pylist()
         assert len(result) > 0
         assert all(r["value"] > 290_000 for r in result)
@@ -403,7 +403,7 @@ def test_stream_processes_with_constant_memory():
         tracemalloc.stop()
         delta_kb = (after - before) / 1024
 
-        from lite_flow import read_csv
+        from pyfloe import read_csv
         result = read_csv(path).to_pylist()
         assert len(result) > 0
         assert delta_kb < 5000, f"Used {delta_kb:.0f} KB — likely buffering"
@@ -423,7 +423,7 @@ def test_from_chunks_streams_chunk_by_chunk():
     try:
         from_chunks(make_chunks).filter(col("v") > 5).to_csv(path)
 
-        from lite_flow import read_csv
+        from pyfloe import read_csv
         result = read_csv(path).to_pylist()
         assert chunk_count[0] >= 2  # chunks were actually generated lazily
         assert all(r["v"] > 5 for r in result)

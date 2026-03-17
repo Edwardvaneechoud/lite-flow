@@ -2,7 +2,7 @@
 import os
 import tempfile
 
-from lite_flow import (
+from pyfloe import (
     Floe,
     col,
     read_csv,
@@ -361,7 +361,7 @@ def _write_test_parquet():
 
 @pytest.mark.skipif(not HAS_PYARROW, reason="pyarrow not installed")
 def test_read_parquet_basic():
-    from lite_flow import read_parquet
+    from pyfloe import read_parquet
     path = _write_test_parquet()
     try:
         ff = read_parquet(path)
@@ -374,7 +374,7 @@ def test_read_parquet_basic():
 
 @pytest.mark.skipif(not HAS_PYARROW, reason="pyarrow not installed")
 def test_read_parquet_lazy_schema_from_metadata():
-    from lite_flow import read_parquet
+    from pyfloe import read_parquet
     path = _write_test_parquet()
     try:
         ff = read_parquet(path)
@@ -389,7 +389,7 @@ def test_read_parquet_lazy_schema_from_metadata():
 
 @pytest.mark.skipif(not HAS_PYARROW, reason="pyarrow not installed")
 def test_read_parquet_column_pruning():
-    from lite_flow import read_parquet
+    from pyfloe import read_parquet
     path = _write_test_parquet()
     try:
         ff = read_parquet(path, columns=['id', 'score'])
@@ -402,7 +402,7 @@ def test_read_parquet_column_pruning():
 
 @pytest.mark.skipif(not HAS_PYARROW, reason="pyarrow not installed")
 def test_read_parquet_with_filter_pipeline():
-    from lite_flow import read_parquet
+    from pyfloe import read_parquet
     path = _write_test_parquet()
     try:
         result = (
@@ -419,7 +419,7 @@ def test_read_parquet_with_filter_pipeline():
 
 @pytest.mark.skipif(not HAS_PYARROW, reason="pyarrow not installed")
 def test_to_parquet_roundtrip():
-    from lite_flow import read_parquet
+    from pyfloe import read_parquet
     ff = Floe([
         {"x": 1, "y": "hello"},
         {"x": 2, "y": "world"},
