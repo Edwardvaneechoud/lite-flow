@@ -9,7 +9,7 @@ from typing import (
     get_type_hints,
 )
 
-from .expr import AggExpr, Col, Expr, WindowExpr
+from .expr import AggExpr, AggFunc, Col, Expr, JoinHow, WindowExpr
 from .plan import (
     AggNode,
     ApplyNode,
@@ -50,12 +50,43 @@ def _dicts_to_tuples(data: list[dict]) -> tuple[list[str], list[tuple]]:
 
 
 class GroupByBuilder:
+    """Builder for grouped aggregation operations.
+
+    Created by calling `Floe.group_by()`. Use `.agg()` to specify
+    aggregation expressions and produce a result Floe.
+    """
+
     def __init__(self, ff: Floe, group_cols: list[str], sorted: bool = False):
         self._ff = ff
         self._group_cols = group_cols
         self._sorted = sorted
 
     def agg(self, *agg_exprs: AggExpr) -> Floe:
+        """Apply aggregation expressions to each group.
+
+        Args:
+            *agg_exprs: One or more aggregation expressions, e.g.
+                ``col("amount").sum().alias("total")``.
+
+        Returns:
+            A new Floe with one row per group.
+
+        Raises:
+            TypeError: If any argument is not an AggExpr.
+
+        Examples:
+            >>> from pyfloe import Floe, col
+            >>> orders = Floe([
+            ...     {"region": "EU", "amount": 250},
+            ...     {"region": "EU", "amount": 180},
+            ...     {"region": "US", "amount": 320},
+            ... ])
+            >>> orders.group_by("region").agg(
+            ...     col("amount").sum().alias("total"),
+            ...     col("amount").count().alias("n"),
+            ... ).sort("region").to_pylist()
+            [{'region': 'EU', 'total': 430, 'n': 2}, {'region': 'US', 'total': 320, 'n': 1}]
+        """
         for i, expr in enumerate(agg_exprs):
             if not isinstance(expr, AggExpr):
                 raise TypeError(
@@ -71,10 +102,48 @@ class GroupByBuilder:
 
 
 class Floe:
+    """A lazy, composable dataframe.
+
+    Operations on a Floe build a query plan without executing it.
+    Data flows only when you call a materialization method like
+    `.collect()`, `.to_pylist()`, or `.to_csv()`.
+
+    Examples:
+        >>> ff = Floe([{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}])
+        >>> ff.filter(col("age") > 28).to_pylist()
+        [{'name': 'Alice', 'age': 30}]
+    """
+
     __slots__ = ('_plan', '_materialized', '_name', '_optimized')
 
     def __init__(self, raw_data: list[dict] | list = None, *,
                  name: str = None):
+        """Create a Floe from in-memory data.
+
+        Args:
+            raw_data: Input data as a list of dicts, list of tuples,
+                list of objects with ``__dict__``, or a dict of columns.
+            name: Optional name for the Floe.
+
+        Examples:
+            From a list of dicts:
+
+            >>> ff = Floe([{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}])
+            >>> ff.columns
+            ['name', 'age']
+
+            From a dict of columns:
+
+            >>> ff = Floe({"x": [1, 2, 3], "y": ["a", "b", "c"]})
+            >>> ff.to_pylist()
+            [{'x': 1, 'y': 'a'}, {'x': 2, 'y': 'b'}, {'x': 3, 'y': 'c'}]
+
+            From a list of tuples (auto-named columns):
+
+            >>> ff = Floe([(1, "a"), (2, "b")])
+            >>> ff.columns
+            ['col_0', 'col_1']
+        """
         self._name = name
         self._materialized: list[tuple] | None = None
         self._optimized: PlanNode | None = None
@@ -132,32 +201,116 @@ class Floe:
 
     @property
     def schema(self) -> LazySchema:
+        """Output schema of this Floe, computed without touching data.
+
+        Examples:
+            >>> ff = Floe([{"name": "Alice", "age": 30}])
+            >>> ff.schema.column_names
+            ['name', 'age']
+            >>> ff.schema.dtypes
+            {'name': <class 'str'>, 'age': <class 'int'>}
+        """
         return self._plan.schema()
 
     @property
     def columns(self) -> list[str]:
+        """List of column names.
+
+        Examples:
+            >>> Floe([{"x": 1, "y": 2}]).columns
+            ['x', 'y']
+        """
         return self.schema.column_names
 
     @property
     def dtypes(self) -> dict[str, type]:
+        """Mapping of column names to their Python types.
+
+        Examples:
+            >>> Floe([{"name": "Alice", "age": 30}]).dtypes
+            {'name': <class 'str'>, 'age': <class 'int'>}
+        """
         return self.schema.dtypes
 
     def explain(self, optimized: bool = False) -> str:
+        """Return a string representation of the query plan tree.
+
+        Args:
+            optimized: If True, show the plan after optimization
+                (filter pushdown, column pruning).
+
+        Examples:
+            >>> ff = Floe([{"a": 1}]).filter(col("a") > 0).select("a")
+            >>> print(ff.explain())  # doctest: +SKIP
+            Project [a]
+              Filter [(col("a") > 0)]
+                Scan [a] (1 rows)
+        """
         plan = self._plan
         if optimized:
             plan = Optimizer().optimize(plan)
         return plan.explain()
 
     def print_explain(self, optimized: bool = False):
+        """Print the query plan tree to stdout.
+
+        Shortcut for ``print(ff.explain())``.
+
+        Args:
+            optimized: If True, show the plan after optimization.
+        """
         print(self.explain(optimized))
 
     def select(self, *args: str | Expr) -> Floe:
+        """Select columns by name or expression.
+
+        Args:
+            *args: Column names as strings, or Expr objects.
+
+        Returns:
+            A new lazy Floe with only the selected columns.
+
+        Examples:
+            Select by column name:
+
+            >>> ff = Floe([{"a": 1, "b": 2, "c": 3}])
+            >>> ff.select("a", "c").to_pylist()
+            [{'a': 1, 'c': 3}]
+
+            Select with expressions:
+
+            >>> ff.select(col("a"), (col("b") + col("c")).alias("sum")).to_pylist()
+            [{'a': 1, 'sum': 5}]
+        """
         if all(isinstance(a, str) for a in args):
             return Floe._from_plan(ProjectNode(self._plan, list(args)))
         exprs = [Col(a) if isinstance(a, str) else a for a in args]
         return Floe._from_plan(ProjectNode(self._plan, exprs=[e for e in exprs]))
 
     def filter(self, predicate_or_col=None, _filter=None, **kwargs) -> Floe:
+        """Filter rows matching a predicate expression.
+
+        Args:
+            predicate_or_col: An Expr that evaluates to a boolean per row,
+                e.g. ``col("amount") > 100``.
+
+        Returns:
+            A new lazy Floe with only matching rows.
+
+        Examples:
+            >>> orders = Floe([
+            ...     {"product": "A", "amount": 250, "region": "EU"},
+            ...     {"product": "B", "amount": 75,  "region": "US"},
+            ...     {"product": "C", "amount": 180, "region": "EU"},
+            ... ])
+            >>> orders.filter(col("amount") > 100).to_pylist()
+            [{'product': 'A', 'amount': 250, 'region': 'EU'}, {'product': 'C', 'amount': 180, 'region': 'EU'}]
+
+            Compound filters with ``&`` and ``|``:
+
+            >>> orders.filter((col("region") == "EU") & (col("amount") > 200)).to_pylist()
+            [{'product': 'A', 'amount': 250, 'region': 'EU'}]
+        """
         if isinstance(predicate_or_col, Expr) and _filter is None:
             return Floe._from_plan(FilterNode(self._plan, predicate_or_col))
 
@@ -203,24 +356,100 @@ class Floe:
         raise ValueError('Provide an Expr predicate or use legacy filter(col, _filter=...)')
 
     def with_column(self, name: str, expr: Expr) -> Floe:
+        """Add a computed column to the Floe.
+
+        Args:
+            name: Name for the new column.
+            expr: Expression to compute the column values.
+
+        Returns:
+            A new lazy Floe with the additional column.
+
+        Examples:
+            >>> ff = Floe([{"price": 100}, {"price": 200}])
+            >>> ff.with_column("tax", col("price") * 0.2).to_pylist()
+            [{'price': 100, 'tax': 20.0}, {'price': 200, 'tax': 40.0}]
+        """
         if isinstance(expr, WindowExpr):
             return Floe._from_plan(WindowNode(self._plan, expr, name))
         return Floe._from_plan(WithColumnNode(self._plan, name, expr))
 
     def with_columns(self, **kwargs: Expr) -> Floe:
+        """Add multiple computed columns at once.
+
+        Args:
+            **kwargs: Column name to expression mappings.
+
+        Returns:
+            A new lazy Floe with the additional columns.
+
+        Examples:
+            >>> ff = Floe([{"amount": 250, "region": "eu"}])
+            >>> ff.with_columns(
+            ...     double=col("amount") * 2,
+            ...     upper_region=col("region").str.upper(),
+            ... ).to_pylist()
+            [{'amount': 250, 'region': 'eu', 'double': 500, 'upper_region': 'EU'}]
+        """
         ff = self
         for name, expr in kwargs.items():
             ff = ff.with_column(name, expr)
         return ff
 
     def drop(self, *columns: str) -> Floe:
+        """Remove columns from the Floe.
+
+        Args:
+            *columns: Column names to drop.
+
+        Returns:
+            A new lazy Floe without the specified columns.
+
+        Examples:
+            >>> ff = Floe([{"a": 1, "b": 2, "c": 3}])
+            >>> ff.drop("b", "c").columns
+            ['a']
+        """
         keep = [c for c in self.columns if c not in set(columns)]
         return Floe._from_plan(ProjectNode(self._plan, keep))
 
     def rename(self, mapping: dict[str, str]) -> Floe:
+        """Rename columns.
+
+        Args:
+            mapping: Old name to new name mapping.
+
+        Returns:
+            A new lazy Floe with renamed columns.
+
+        Examples:
+            >>> ff = Floe([{"amount": 100, "region": "EU"}])
+            >>> ff.rename({"amount": "price", "region": "area"}).columns
+            ['price', 'area']
+        """
         return Floe._from_plan(RenameNode(self._plan, mapping))
 
     def sort(self, *by: str, ascending: bool | list[bool] = True) -> Floe:
+        """Sort rows by one or more columns.
+
+        Args:
+            *by: Column names to sort by.
+            ascending: Sort direction. A single bool applies to all
+                columns; a list specifies per-column direction.
+
+        Returns:
+            A new lazy Floe with sorted rows.
+
+        Examples:
+            >>> ff = Floe([{"name": "C"}, {"name": "A"}, {"name": "B"}])
+            >>> ff.sort("name").to_pylist()
+            [{'name': 'A'}, {'name': 'B'}, {'name': 'C'}]
+
+            Descending sort:
+
+            >>> ff.sort("name", ascending=False).to_pylist()
+            [{'name': 'C'}, {'name': 'B'}, {'name': 'A'}]
+        """
         by_list = list(by)
         if isinstance(ascending, bool):
             asc_list = [ascending] * len(by_list)
@@ -231,9 +460,36 @@ class Floe:
     def join(self, other: Floe, on: str | list[str] = None,
              left_on: str | list[str] = None,
              right_on: str | list[str] = None,
-             how: str = 'inner',
+             how: JoinHow = 'inner',
              sorted: bool = False,
              left_cols=None, right_cols=None) -> Floe:
+        """Join with another Floe.
+
+        Args:
+            other: Right-side Floe to join with.
+            on: Column name(s) present in both sides.
+            left_on: Column name(s) on the left side.
+            right_on: Column name(s) on the right side.
+            how: Join type — ``'inner'``, ``'left'``, or ``'full'``.
+            sorted: If True, use sort-merge join (O(1) memory for
+                pre-sorted inputs) instead of hash join.
+
+        Returns:
+            A new lazy Floe with columns from both sides.
+
+        Examples:
+            >>> orders = Floe([{"id": 1, "cust": 101}, {"id": 2, "cust": 102}])
+            >>> customers = Floe([{"cust": 101, "name": "Alice"}])
+            >>> orders.join(customers, on="cust", how="left").to_pylist()
+            [{'id': 1, 'cust': 101, 'cust': 101, 'name': 'Alice'}, {'id': 2, 'cust': 102, 'cust': None, 'name': None}]
+
+            Different key names on each side:
+
+            >>> left = Floe([{"order_id": 1, "customer_id": 10}])
+            >>> right = Floe([{"cid": 10, "name": "Alice"}])
+            >>> left.join(right, left_on="customer_id", right_on="cid").to_pylist()
+            [{'order_id': 1, 'customer_id': 10, 'cid': 10, 'name': 'Alice'}]
+        """
         if left_cols is not None:
             left_on = left_cols
         if right_cols is not None:
@@ -258,6 +514,27 @@ class Floe:
         )
 
     def group_by(self, *columns: str, sorted: bool = False, **legacy_kwargs) -> GroupByBuilder | Floe:
+        """Group by one or more columns.
+
+        Args:
+            *columns: Column names to group by.
+            sorted: If True, use streaming sorted aggregation
+                (requires input sorted by group columns).
+
+        Returns:
+            A GroupByBuilder — call ``.agg()`` to specify aggregations.
+
+        Examples:
+            >>> orders = Floe([
+            ...     {"region": "EU", "amount": 250},
+            ...     {"region": "EU", "amount": 180},
+            ...     {"region": "US", "amount": 320},
+            ... ])
+            >>> orders.group_by("region").agg(
+            ...     col("amount").sum().alias("total"),
+            ... ).sort("region").to_pylist()
+            [{'region': 'EU', 'total': 430}, {'region': 'US', 'total': 320}]
+        """
         cols = list(columns)
 
         agg_func = legacy_kwargs.get('agg_func')
@@ -279,10 +556,52 @@ class Floe:
         return GroupByBuilder(self, cols, sorted=sorted)
 
     def explode(self, column: str) -> Floe:
+        """Unnest a list column into separate rows.
+
+        Each element in the list becomes its own row, with all other
+        column values duplicated.
+
+        Args:
+            column: Name of the column containing lists.
+
+        Returns:
+            A new lazy Floe with one row per list element.
+
+        Examples:
+            >>> ff = Floe([
+            ...     {"id": 1, "tags": ["a", "b"]},
+            ...     {"id": 2, "tags": ["c"]},
+            ... ])
+            >>> ff.explode("tags").to_pylist()
+            [{'id': 1, 'tags': 'a'}, {'id': 1, 'tags': 'b'}, {'id': 2, 'tags': 'c'}]
+        """
         return Floe._from_plan(ExplodeNode(self._plan, column))
 
     def pivot(self, index: str | list[str], on: str, values: str,
-              agg: str = 'first', columns: list[str] | None = None) -> Floe:
+              agg: AggFunc = 'first', columns: list[str] | None = None) -> Floe:
+        """Pivot (reshape long to wide).
+
+        Args:
+            index: Column(s) to keep as row identifiers.
+            on: Column whose unique values become new column headers.
+            values: Column whose values fill the pivoted cells.
+            agg: Aggregation function name (``'first'``, ``'sum'``, etc.).
+            columns: Explicit list of pivot column values (auto-detected if None).
+
+        Returns:
+            A new lazy Floe in wide format.
+
+        Examples:
+            >>> ff = Floe([
+            ...     {"name": "Alice", "subject": "math", "score": 90},
+            ...     {"name": "Alice", "subject": "english", "score": 85},
+            ...     {"name": "Bob", "subject": "math", "score": 78},
+            ...     {"name": "Bob", "subject": "english", "score": 92},
+            ... ])
+            >>> ff.pivot(index="name", on="subject", values="score",
+            ...          columns=["math", "english"]).sort("name").to_pylist()
+            [{'name': 'Alice', 'math': 90, 'english': 85}, {'name': 'Bob', 'math': 78, 'english': 92}]
+        """
         if isinstance(index, str):
             index = [index]
         return Floe._from_plan(
@@ -293,6 +612,25 @@ class Floe:
                 value_columns: str | list[str] | None = None,
                 variable_name: str = 'variable',
                 value_name: str = 'value') -> Floe:
+        """Unpivot (reshape wide to long). Also available as ``.melt()``.
+
+        Args:
+            id_columns: Column(s) to keep as identifiers.
+            value_columns: Column(s) to unpivot. If None, all non-id columns.
+            variable_name: Name for the new column holding original column names.
+            value_name: Name for the new column holding the values.
+
+        Returns:
+            A new lazy Floe in long format.
+
+        Examples:
+            >>> ff = Floe([
+            ...     {"name": "Alice", "math": 90, "english": 85},
+            ...     {"name": "Bob", "math": 78, "english": 92},
+            ... ])
+            >>> ff.unpivot("name", ["math", "english"]).sort("name", "variable").to_pylist()
+            [{'name': 'Alice', 'variable': 'english', 'value': 85}, {'name': 'Alice', 'variable': 'math', 'value': 90}, {'name': 'Bob', 'variable': 'english', 'value': 92}, {'name': 'Bob', 'variable': 'math', 'value': 78}]
+        """
         if isinstance(id_columns, str):
             id_columns = [id_columns]
         if value_columns is None:
@@ -307,28 +645,105 @@ class Floe:
     melt = unpivot
 
     def union(self, other: Floe) -> Floe:
+        """Stack rows from another Floe below this one.
+
+        Both Floes must have the same columns.
+
+        Args:
+            other: Floe to append.
+
+        Returns:
+            A new lazy Floe with rows from both inputs.
+
+        Examples:
+            >>> a = Floe([{"x": 1}, {"x": 2}])
+            >>> b = Floe([{"x": 3}])
+            >>> a.union(b).to_pylist()
+            [{'x': 1}, {'x': 2}, {'x': 3}]
+        """
         return Floe._from_plan(UnionNode([self._plan, other._plan]))
 
     def apply(self, func: Callable, columns: list[str] = None,
               output_dtype: type = None) -> Floe:
+        """Apply a function to column values.
+
+        Args:
+            func: Function to apply to each cell value.
+            columns: Columns to apply to. If None, applies to all columns.
+            output_dtype: Expected output type (for schema inference).
+
+        Returns:
+            A new lazy Floe with the function applied.
+
+        Examples:
+            Apply to specific columns:
+
+            >>> ff = Floe([{"name": "Alice", "age": 30}])
+            >>> ff.apply(str, columns=["age"]).to_pylist()
+            [{'name': 'Alice', 'age': '30'}]
+
+            Apply to all columns:
+
+            >>> ff.apply(str).to_pylist()
+            [{'name': 'Alice', 'age': '30'}]
+        """
         return Floe._from_plan(ApplyNode(self._plan, func, columns, output_dtype))
 
     def read(self, columns: str | list[str]) -> Floe:
+        """Alias for :meth:`select`. Select columns by name.
+
+        Args:
+            columns: Column name or list of column names to select.
+
+        Returns:
+            A new lazy Floe with only the specified columns.
+        """
         if isinstance(columns, str):
             columns = [columns]
         return self.select(*columns)
 
     def head(self, n: int = 5, optimize: bool = True) -> Floe:
+        """Return the first n rows as a new materialized Floe.
+
+        Args:
+            n: Number of rows.
+            optimize: If True, run the query optimizer first.
+
+        Returns:
+            A new materialized Floe containing the first *n* rows.
+
+        Examples:
+            >>> ff = Floe([{"x": i} for i in range(100)])
+            >>> ff.head(3).to_pylist()
+            [{'x': 0}, {'x': 1}, {'x': 2}]
+        """
         plan = self._exec_plan if optimize else self._plan
         rows = list(islice(plan.execute(), n))
         return Floe._from_plan(ScanNode(rows, self.columns, self.schema))
 
     def optimize(self) -> Floe:
+        """Return a new Floe with an optimized query plan.
+
+        Applies filter pushdown and column pruning.
+
+        Returns:
+            A new Floe wrapping the optimized plan.
+
+        Examples:
+            >>> ff = Floe([{"a": 1, "b": 2}]).select("a").filter(col("a") > 0)
+            >>> opt = ff.optimize()
+            >>> opt.to_pylist()
+            [{'a': 1}]
+        """
         optimized_plan = Optimizer().optimize(self._plan)
         return Floe._from_plan(optimized_plan, self._name)
 
     @property
     def is_materialized(self) -> bool:
+        """Whether the query plan has been executed and data is cached.
+
+        Returns True after calling :meth:`collect` or :meth:`to_pylist`.
+        """
         return self._materialized is not None
 
     @property
@@ -341,6 +756,26 @@ class Floe:
         return self._materialized
 
     def collect(self, optimize: bool = True) -> Floe:
+        """Materialize the query plan and cache the results.
+
+        After calling collect, subsequent operations use the cached data.
+        Calling collect multiple times is safe and idempotent.
+
+        Args:
+            optimize: If True, run the query optimizer first.
+
+        Returns:
+            Self, with data materialized.
+
+        Examples:
+            >>> ff = Floe([{"x": 1}, {"x": 2}]).filter(col("x") > 0)
+            >>> ff.is_materialized
+            False
+            >>> ff.collect()  # doctest: +SKIP
+            Floe [2 rows × 1 cols] (materialized)
+            >>> ff.is_materialized
+            True
+        """
         if self._materialized is None:
             plan = self._exec_plan if optimize else self._plan
             data: list = []
@@ -350,6 +785,21 @@ class Floe:
         return self
 
     def count(self, optimize: bool = True) -> int:
+        """Return the total number of rows.
+
+        Uses fast-path counting when possible (e.g. for in-memory data)
+        without materializing all rows.
+
+        Args:
+            optimize: If True, run the query optimizer first.
+
+        Returns:
+            The row count as an integer.
+
+        Examples:
+            >>> Floe([{"x": 1}, {"x": 2}, {"x": 3}]).count()
+            3
+        """
         n = self._known_length
         if n is not None:
             return n
@@ -363,35 +813,95 @@ class Floe:
         return total
 
     def to_pylist(self) -> list[dict]:
+        """Materialize and return data as a list of dicts.
+
+        Examples:
+            >>> Floe([{"a": 1, "b": 2}]).to_pylist()
+            [{'a': 1, 'b': 2}]
+        """
         cols = self.columns
         return [{cols[i]: v for i, v in enumerate(row)} for row in self.raw_data]
 
     def to_pydict(self) -> dict[str, list]:
+        """Materialize and return data as a dict of column lists.
+
+        Examples:
+            >>> Floe([{"x": 1, "y": "a"}, {"x": 2, "y": "b"}]).to_pydict()
+            {'x': [1, 2], 'y': ['a', 'b']}
+        """
         cols = self.columns
         data = self.raw_data
         return {c: [row[i] for row in data] for i, c in enumerate(cols)}
 
     def to_tuples(self) -> list[tuple]:
+        """Materialize and return data as a list of tuples.
+
+        Examples:
+            >>> Floe([{"x": 1, "y": "a"}]).to_tuples()
+            [(1, 'a')]
+        """
         return list(self.raw_data)
 
     def to_csv(self, path: str, *, delimiter: str = ',',
                header: bool = True, encoding: str = 'utf-8'):
+        """Stream the query plan to a CSV file with constant memory.
+
+        Data is written row-by-row without buffering the entire dataset,
+        so this works for arbitrarily large pipelines.
+
+        Args:
+            path: Output file path.
+            delimiter: Field delimiter character.
+            header: Whether to write a header row.
+            encoding: File encoding.
+
+        Examples:
+            >>> ff = Floe([{"name": "Alice", "age": 30}])
+            >>> ff.to_csv("/tmp/output.csv")  # doctest: +SKIP
+        """
         from .io import _to_csv_impl
         _to_csv_impl(self, path, delimiter, header, encoding)
 
     def to_tsv(self, path: str, **kwargs):
+        """Stream the query plan to a TSV (tab-separated) file.
+
+        Equivalent to ``ff.to_csv(path, delimiter='\\t')``.
+
+        Args:
+            path: Output file path.
+            **kwargs: Additional arguments passed to :meth:`to_csv`.
+        """
         kwargs.setdefault('delimiter', '\t')
         self.to_csv(path, **kwargs)
 
     def to_jsonl(self, path: str, *, encoding: str = 'utf-8'):
+        """Stream the query plan to a JSON Lines file.
+
+        Args:
+            path: Output file path.
+            encoding: File encoding.
+        """
         from .io import _to_jsonl_impl
         _to_jsonl_impl(self, path, encoding)
 
     def to_json(self, path: str, *, encoding: str = 'utf-8', indent: int = None):
+        """Write data as a JSON array.
+
+        Args:
+            path: Output file path.
+            encoding: File encoding.
+            indent: JSON indentation level.
+        """
         from .io import _to_json_impl
         _to_json_impl(self, path, encoding, indent)
 
     def to_parquet(self, path: str, **kwargs):
+        """Write data to a Parquet file (requires pyarrow).
+
+        Args:
+            path: Output file path.
+            **kwargs: Additional arguments passed to pyarrow.
+        """
         from .io import _to_parquet_impl
         _to_parquet_impl(self, path, **kwargs)
 
@@ -450,6 +960,21 @@ class Floe:
 
     def display(self, n: int = 20, max_col_width: int = 30,
                 optimize: bool = True) -> None:
+        """Print a formatted table of the first n rows.
+
+        Args:
+            n: Maximum number of rows to display.
+            max_col_width: Truncate cell values longer than this.
+            optimize: If True, run the query optimizer first.
+
+        Examples:
+            >>> ff = Floe([{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}])
+            >>> ff.display()  # doctest: +SKIP
+            name  | age
+            ------+----
+            Alice | 30
+            Bob   | 25
+        """
         cols = self.columns
         plan = self._exec_plan if optimize else self._plan
         sample = list(islice(plan.execute(), n))
@@ -481,9 +1006,49 @@ class Floe:
         print('\n'.join(lines))
 
     def typed(self, row_type: type[T]) -> TypedFloe[T]:
+        """Wrap this Floe as a TypedFloe for IDE-friendly typed results.
+
+        Operations that preserve the schema (filter, sort, head) return
+        a TypedFloe, so ``.to_pylist()`` returns ``list[T]`` in type checkers.
+
+        Args:
+            row_type: A TypedDict class describing the row schema.
+
+        Returns:
+            A TypedFloe wrapping the same query plan.
+
+        Examples:
+            >>> from typing import TypedDict
+            >>> class Order(TypedDict):
+            ...     order_id: int
+            ...     amount: float
+            >>> orders = Floe([{"order_id": 1, "amount": 99.9}]).typed(Order)
+            >>> isinstance(orders, TypedFloe)
+            True
+        """
         return TypedFloe._from_typed(self._plan, row_type, self._name)
 
     def validate(self, row_type: type) -> Floe:
+        """Validate the schema against a TypedDict type.
+
+        Args:
+            row_type: A TypedDict class. Each key is checked against
+                the Floe's schema for presence and type compatibility.
+
+        Returns:
+            Self, if validation passes.
+
+        Raises:
+            TypeError: If the schema doesn't match the TypedDict.
+
+        Examples:
+            >>> from typing import TypedDict
+            >>> class Order(TypedDict):
+            ...     order_id: int
+            ...     amount: float
+            >>> Floe([{"order_id": 1, "amount": 9.9}]).validate(Order)  # doctest: +SKIP
+            Floe [1 rows × 2 cols]
+        """
         hints = get_type_hints(row_type)
         schema = self.schema
         errors = []
@@ -500,6 +1065,13 @@ class Floe:
 
 
 class TypedFloe(Floe, Generic[T]):
+    """A Floe with a known row type for static type checking.
+
+    Created via ``Floe.typed(MyTypedDict)``. Operations that preserve
+    the schema (filter, sort, head) return a TypedFloe, so
+    ``.to_pylist()`` returns ``list[T]`` in type checkers.
+    """
+
     __slots__ = ('_row_type',)
 
     def __init__(self, *args, **kwargs):

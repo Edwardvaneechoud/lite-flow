@@ -221,6 +221,33 @@ def read_csv(
     quotechar: str = '"',
     cast_types: bool = True,
 ):
+    """Read a CSV file as a lazy Floe.
+
+    Types are inferred from a sample and datetime columns are auto-detected.
+    Data is not loaded until you trigger evaluation.
+
+    Args:
+        path: Path to the CSV file.
+        has_header: Whether the first row is a header.
+        columns: Override column names.
+        encoding: File encoding.
+        delimiter: Field delimiter character.
+        schema_sample_size: Number of rows to sample for type inference.
+        skip_rows: Number of initial rows to skip.
+        quotechar: Quote character for CSV fields.
+        cast_types: If True, cast string values to inferred types.
+
+    Returns:
+        A lazy Floe. Data streams from disk when evaluated.
+
+    Examples:
+        >>> from pyfloe import read_csv, col
+        >>> ff = read_csv("orders.csv")  # doctest: +SKIP
+        >>> ff.schema.dtypes  # doctest: +SKIP
+        {'order_id': <class 'int'>, 'amount': <class 'float'>, ...}
+        >>> ff.filter(col("amount") > 100).to_pylist()  # doctest: +SKIP
+        [{'order_id': 1, 'amount': 250.0, ...}, ...]
+    """
     from .core import Floe
     node = _read_delimited(path, delimiter=delimiter, has_header=has_header,
                            columns=columns, encoding=encoding,
@@ -231,6 +258,23 @@ def read_csv(
 
 
 def read_tsv(path: str, **kwargs):
+    """Read a TSV (tab-separated) file as a lazy Floe.
+
+    Equivalent to ``read_csv(path, delimiter='\\t', ...)``.
+
+    Args:
+        path: Path to the TSV file.
+        **kwargs: Additional arguments passed to the CSV reader.
+
+    Returns:
+        A lazy Floe.
+
+    Examples:
+        >>> from pyfloe import read_tsv
+        >>> ff = read_tsv("data.tsv")  # doctest: +SKIP
+        >>> ff.to_pylist()  # doctest: +SKIP
+        [{'name': 'Alice', 'score': 95}, ...]
+    """
     kwargs.setdefault('delimiter', '\t')
     from .core import Floe
     node = _read_delimited(path, source_label='TSV', **kwargs)
@@ -244,6 +288,29 @@ def read_jsonl(
     schema_sample_size: int = 100,
     columns: list[str] | None = None,
 ):
+    """Read a JSON Lines file as a lazy Floe.
+
+    Each line is parsed as a JSON object. Schema is inferred from a sample.
+
+    Args:
+        path: Path to the JSONL file.
+        encoding: File encoding.
+        schema_sample_size: Number of lines to sample for schema inference.
+        columns: Subset of columns to read.
+
+    Returns:
+        A lazy Floe.
+
+    Examples:
+        >>> from pyfloe import read_jsonl, col
+        >>> ff = read_jsonl("events.jsonl")  # doctest: +SKIP
+        >>> ff.filter(col("event") == "click").to_pylist()  # doctest: +SKIP
+        [{'event': 'click', 'user_id': 42, ...}, ...]
+
+        Read only specific columns:
+
+        >>> ff = read_jsonl("events.jsonl", columns=["event", "user_id"])  # doctest: +SKIP
+    """
     from .core import Floe
 
     all_keys: list = []
@@ -295,6 +362,27 @@ def read_json(
     encoding: str = 'utf-8',
     columns: list[str] | None = None,
 ):
+    """Read a JSON file containing a top-level array.
+
+    Unlike :func:`read_jsonl`, this loads the entire file into memory at once.
+
+    Args:
+        path: Path to the JSON file.
+        encoding: File encoding.
+        columns: Subset of columns to read.
+
+    Returns:
+        A Floe containing the parsed data.
+
+    Raises:
+        ValueError: If the JSON file does not contain a top-level array.
+
+    Examples:
+        >>> from pyfloe import read_json
+        >>> ff = read_json("cities.json")  # doctest: +SKIP
+        >>> ff.to_pylist()  # doctest: +SKIP
+        [{'city': 'NYC', 'pop': 8336817}, ...]
+    """
     from .core import Floe
 
     with open(path, encoding=encoding) as f:
@@ -319,6 +407,27 @@ def read_fixed_width(
     strip: bool = True,
     cast_types: bool = True,
 ):
+    """Read a fixed-width file as a lazy Floe.
+
+    Args:
+        path: Path to the file.
+        widths: List of column widths in characters.
+        columns: Override column names.
+        has_header: Whether the first row is a header.
+        encoding: File encoding.
+        schema_sample_size: Number of rows to sample for type inference.
+        strip: Whether to strip whitespace from field values.
+        cast_types: If True, cast string values to inferred types.
+
+    Returns:
+        A lazy Floe.
+
+    Examples:
+        >>> from pyfloe import read_fixed_width
+        >>> ff = read_fixed_width("people.txt", widths=[10, 4, 14], has_header=True)  # doctest: +SKIP
+        >>> ff.to_pylist()  # doctest: +SKIP
+        [{'NAME': 'Alice', 'AGE': 30, 'CITY': 'New York'}, ...]
+    """
     from .core import Floe
 
     n_cols = len(widths)
@@ -380,6 +489,31 @@ def read_parquet(
     columns: list[str] | None = None,
     batch_size: int = 10_000,
 ):
+    """Read a Parquet file as a lazy Floe (requires pyarrow).
+
+    Schema is read from the Parquet file metadata without loading data.
+
+    Args:
+        path: Path to the Parquet file.
+        columns: Subset of columns to read.
+        batch_size: Number of rows to read per batch.
+
+    Returns:
+        A lazy Floe.
+
+    Raises:
+        ImportError: If pyarrow is not installed.
+
+    Examples:
+        >>> from pyfloe import read_parquet, col
+        >>> ff = read_parquet("data.parquet")  # doctest: +SKIP
+        >>> ff.filter(col("score") > 85).select("name", "score").to_pylist()  # doctest: +SKIP
+        [{'name': 'Alice', 'score': 95.5}, ...]
+
+        Read only specific columns:
+
+        >>> ff = read_parquet("data.parquet", columns=["id", "score"])  # doctest: +SKIP
+    """
     from .core import Floe
 
     try:

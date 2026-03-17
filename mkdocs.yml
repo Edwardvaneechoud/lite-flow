@@ -4,6 +4,9 @@ site_description: Zero-dependency, lazy dataframes for Python.
 repo_url: https://github.com/Edwardvaneechoud/pyfloe
 repo_name: Edwardvaneechoud/pyfloe
 
+extra_css:
+  - stylesheets/api.css
+
 theme:
   name: material
   features:
@@ -30,13 +33,20 @@ theme:
 
 nav:
   - Getting Started: index.md
-  - Expressions: expressions.md
-  - Operations: operations.md
-  - Datetime: datetime.md
-  - File I/O: io.md
-  - Streaming: streaming.md
-  - Type Safety: type-safety.md
-  - API Reference: api-reference.md
+  - User Guide:
+    - Expressions: expressions.md
+    - Operations: operations.md
+    - Datetime: datetime.md
+    - File I/O: io.md
+    - Streaming: streaming.md
+    - Type Safety: type-safety.md
+  - API Reference:
+    - Overview: api/index.md
+    - Floe: api/floe.md
+    - Expressions: api/expressions.md
+    - File I/O: api/io.md
+    - Streaming: api/streaming.md
+    - Schema & Optimizer: api/schema.md
   - Internals: internals.md
 
 markdown_extensions:
@@ -66,3 +76,6 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
             docstring_style: google
+            separate_signature: true
+            show_signature_annotations: true
+            docstring_section_style: list

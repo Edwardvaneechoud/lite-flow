@@ -1,5 +1,23 @@
 from .core import Floe, GroupByBuilder, TypedFloe
-from .expr import Col, Expr, Lit, col, dense_rank, lit, rank, row_number, when
+from .expr import (
+    Agg,
+    AggFunc,
+    Col,
+    CumKind,
+    DateTrunc,
+    DateTruncUnit,
+    Expr,
+    Join,
+    JoinHow,
+    Lit,
+    RankKind,
+    col,
+    dense_rank,
+    lit,
+    rank,
+    row_number,
+    when,
+)
 from .io import (
     read_csv,
     read_fixed_width,
@@ -18,6 +36,8 @@ __all__ = [
     'Expr', 'Col', 'Lit',
     'LazySchema', 'ColumnSchema',
     'Optimizer',
+    'Agg', 'AggFunc', 'Join', 'JoinHow', 'DateTrunc', 'DateTruncUnit',
+    'RankKind', 'CumKind',
     'read_csv', 'read_tsv', 'read_jsonl', 'read_json',
     'read_fixed_width', 'read_parquet',
     'from_iter', 'from_chunks', 'Stream',

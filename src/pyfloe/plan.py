@@ -4,11 +4,12 @@ from collections import defaultdict
 from collections.abc import Iterator
 from itertools import accumulate, chain, compress, groupby, islice
 from operator import itemgetter
-
 from .expr import (
     AggExpr,
+    AggFunc,
     CumExpr,
     Expr,
+    JoinHow,
     OffsetExpr,
     RankExpr,
     WindowExpr,
@@ -193,7 +194,7 @@ class JoinNode(PlanNode):
 
     def __init__(self, left: PlanNode, right: PlanNode,
                  left_on: list[str], right_on: list[str],
-                 how: str = 'inner'):
+                 how: JoinHow = 'inner'):
         self.left = left
         self.right = right
         self.left_on = left_on
@@ -386,7 +387,7 @@ def _finalize_acc(acc: dict, agg: AggExpr):
         return agg.eval_agg(acc['vals'])
 
 
-def _init_pivot_acc(agg_name: str) -> dict:
+def _init_pivot_acc(agg_name: AggFunc) -> dict:
     if agg_name == 'sum':
         return {'s': 0}
     elif agg_name == 'count':
@@ -405,7 +406,7 @@ def _init_pivot_acc(agg_name: str) -> dict:
         return {'v': None, 'set': False}
 
 
-def _update_pivot_acc(acc: dict, agg_name: str, val) -> None:
+def _update_pivot_acc(acc: dict, agg_name: AggFunc, val) -> None:
     if agg_name == 'sum':
         if val is not None:
             acc['s'] += val
@@ -432,7 +433,7 @@ def _update_pivot_acc(acc: dict, agg_name: str, val) -> None:
         acc['v'] = val
 
 
-def _finalize_pivot_acc(acc: dict, agg_name: str):
+def _finalize_pivot_acc(acc: dict, agg_name: AggFunc):
     if agg_name == 'sum':
         return acc['s']
     elif agg_name == 'count':
@@ -544,7 +545,7 @@ class SortedMergeJoinNode(PlanNode):
 
     def __init__(self, left: PlanNode, right: PlanNode,
                  left_on: list[str], right_on: list[str],
-                 how: str = 'inner'):
+                 how: JoinHow = 'inner'):
         self.left = left
         self.right = right
         self.left_on = left_on
@@ -695,6 +696,7 @@ class SortNode(PlanNode):
 
 class ExplodeNode(PlanNode):
     __slots__ = ('child', 'column')
+
     def __init__(self, child: PlanNode, column: str):
         self.child = child
         self.column = column
@@ -793,7 +795,7 @@ class PivotNode(PlanNode):
                  '_cached_data', '_cached_columns')
 
     def __init__(self, child: PlanNode, index: list[str], on: str,
-                 values: str, agg_name: str = 'first',
+                 values: str, agg_name: AggFunc = 'first',
                  columns: list[str] | None = None):
         self.child = child
         self.index = index
@@ -1135,6 +1137,16 @@ class WindowNode(PlanNode):
 
 
 class Optimizer:
+    """Rule-based query optimizer.
+
+    Applies two optimization passes to a query plan:
+
+    1. **Filter pushdown** — moves filter nodes closer to data sources,
+       reducing the number of rows processed by downstream operations.
+    2. **Column pruning** — removes unused columns early in the plan,
+       reducing memory usage.
+    """
+
     def optimize(self, plan: PlanNode) -> PlanNode:
         plan = self._push_filters(plan)
         needed = set(plan.schema().column_names)
