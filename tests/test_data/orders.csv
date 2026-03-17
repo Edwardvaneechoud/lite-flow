@@ -1,0 +1,8 @@
+order_id,customer_id,product,amount,region,active
+1,101,Widget A,250.00,EU,true
+2,102,Widget B,75.50,US,true
+3,101,Widget C,180.00,EU,false
+4,103,Widget D,120.00,EU,true
+5,102,Widget E,95.00,US,false
+6,104,Widget F,310.00,EU,true
+7,101,,50.00,US,false
