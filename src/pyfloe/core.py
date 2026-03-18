@@ -11,6 +11,7 @@ from typing import (
 
 from .expr import AggExpr, AggFunc, AliasExpr, Col, Expr, JoinHow, WindowExpr
 from .plan import (
+    _BATCH_SIZE,
     AggNode,
     ApplyNode,
     ExplodeNode,
@@ -75,15 +76,15 @@ class LazyGroupBy:
             TypeError: If any argument is not an AggExpr.
 
         Examples:
-            >>> from pyfloe import LazyFrame, col
-            >>> orders = LazyFrame([
+            >>> import pyfloe as pf
+            >>> orders = pf.LazyFrame([
             ...     {"region": "EU", "amount": 250},
             ...     {"region": "EU", "amount": 180},
             ...     {"region": "US", "amount": 320},
             ... ])
             >>> orders.group_by("region").agg(
-            ...     col("amount").sum().alias("total"),
-            ...     col("amount").count().alias("n"),
+            ...     pf.col("amount").sum().alias("total"),
+            ...     pf.col("amount").count().alias("n"),
             ... ).sort("region").to_pylist()
             [{'region': 'EU', 'total': 430, 'n': 2}, {'region': 'US', 'total': 320, 'n': 1}]
         """
@@ -93,6 +94,16 @@ class LazyGroupBy:
                     f"agg() argument {i + 1} is a {type(expr).__name__}, not an AggExpr. "
                     f'Use an aggregation method like col("x").sum(), .count(), '
                     f".mean(), .min(), .max(), .first(), .last(), .n_unique()"
+                )
+        available = set(self._lf.schema.column_names)
+        for expr in agg_exprs:
+            required = expr.required_columns()
+            missing = required - available
+            if missing:
+                raise ValueError(
+                    f"agg() expression {expr!r} references column(s) "
+                    f"{sorted(missing)} not in schema. "
+                    f"Available columns: {sorted(available)}"
                 )
         if self._sorted:
             node: PlanNode = SortedAggNode(self._lf._plan, self._group_cols, list(agg_exprs))
@@ -585,6 +596,13 @@ class LazyFrame:
         """
         cols = list(columns)
 
+        available = self.schema.column_names
+        missing = [c for c in cols if c not in available]
+        if missing:
+            raise ValueError(
+                f"group_by column(s) {missing} not found. Available columns: {available}"
+            )
+
         agg_func = legacy_kwargs.get("agg_func")
         on_cols = legacy_kwargs.get("on_cols")
         if agg_func is not None:
@@ -900,6 +918,27 @@ class LazyFrame:
         """
         return list(self.raw_data)
 
+    def to_batches(self, optimize: bool = True) -> Iterator[list[dict]]:
+        """Materialize and return data in batches of dicts.
+
+        Args:
+            optimize: If True, run the query optimizer first.
+
+        Yields:
+            Batches of rows, each represented as a list of dicts.
+        """
+        cols = self.columns
+        if self._materialized is not None:
+            data = self._materialized
+            for i in range(0, len(data), _BATCH_SIZE):
+                yield [
+                    {cols[j]: v for j, v in enumerate(row)} for row in data[i : i + _BATCH_SIZE]
+                ]
+            return
+        plan = self._exec_plan if optimize else self._plan
+        for chunk in plan.execute_batched():
+            yield [{cols[j]: v for j, v in enumerate(row)} for row in chunk]
+
     def to_csv(
         self, path: str, *, delimiter: str = ",", header: bool = True, encoding: str = "utf-8"
     ) -> None:
@@ -1040,8 +1079,11 @@ class LazyFrame:
             Bob   | 25
         """
         cols = self.columns
-        plan = self._exec_plan if optimize else self._plan
-        sample = list(islice(plan.execute(), n))
+        if self._materialized is not None:
+            sample = self._materialized[:n]
+        else:
+            plan = self._exec_plan if optimize else self._plan
+            sample = list(islice(plan.execute(), n))
         total = self._known_length
 
         def _fmt(v):

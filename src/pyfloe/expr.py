@@ -880,9 +880,9 @@ class StringAccessor:
     ``.upper()``, ``.lower()``, ``.contains()``, ``.replace()``, etc.
 
     Examples:
-        >>> from pyfloe import LazyFrame, col
-        >>> lf = LazyFrame([{"name": "Alice"}, {"name": "Bob"}])
-        >>> lf.with_column("upper", col("name").str.upper()).to_pylist()
+        >>> import pyfloe as pf
+        >>> lf = pf.LazyFrame([{"name": "Alice"}, {"name": "Bob"}])
+        >>> lf.with_column("upper", pf.col("name").str.upper()).to_pylist()
         [{'name': 'Alice', 'upper': 'ALICE'}, {'name': 'Bob', 'upper': 'BOB'}]
     """
 
@@ -1030,10 +1030,10 @@ class DateTimeAccessor:
     All methods handle None values gracefully, returning None.
 
     Examples:
-        >>> from pyfloe import LazyFrame, col
+        >>> import pyfloe as pf
         >>> from datetime import datetime
-        >>> lf = LazyFrame([{"ts": datetime(2024, 1, 15, 8, 30)}])
-        >>> lf.with_column("year", col("ts").dt.year()).to_pylist()
+        >>> lf = pf.LazyFrame([{"ts": datetime(2024, 1, 15, 8, 30)}])
+        >>> lf.with_column("year", pf.col("ts").dt.year()).to_pylist()
         [{'ts': datetime.datetime(2024, 1, 15, 8, 30), 'year': 2024}]
     """
 
@@ -1392,9 +1392,9 @@ def col(name: str) -> Col:
         name: The column name to reference.
 
     Examples:
-        >>> from pyfloe import LazyFrame, col
-        >>> lf = LazyFrame([{"x": 10, "y": 20}])
-        >>> lf.with_column("total", col("x") + col("y")).to_pylist()
+        >>> import pyfloe as pf
+        >>> lf = pf.LazyFrame([{"x": 10, "y": 20}])
+        >>> lf.with_column("total", pf.col("x") + pf.col("y")).to_pylist()
         [{'x': 10, 'y': 20, 'total': 30}]
     """
     return Col(name)
@@ -1409,9 +1409,9 @@ def lit(value: Any) -> Lit:
         value: The constant value.
 
     Examples:
-        >>> from pyfloe import LazyFrame, col, lit
-        >>> lf = LazyFrame([{"x": 10}])
-        >>> lf.filter(col("x") > lit(5)).to_pylist()
+        >>> import pyfloe as pf
+        >>> lf = pf.LazyFrame([{"x": 10}])
+        >>> lf.filter(pf.col("x") > pf.lit(5)).to_pylist()
         [{'x': 10}]
     """
     return Lit(value)
@@ -1424,10 +1424,10 @@ def rank() -> RankExpr:
     Use with ``.over()`` to specify partitioning and ordering.
 
     Examples:
-        >>> from pyfloe import LazyFrame, rank
+        >>> import pyfloe as pf
         >>> data = [{"name": "a", "score": 10}, {"name": "b", "score": 20},
         ...         {"name": "c", "score": 20}, {"name": "d", "score": 30}]
-        >>> LazyFrame(data).with_column("r", rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
+        >>> pf.LazyFrame(data).with_column("r", pf.rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
         [{'name': 'a', 'score': 10, 'r': 1}, {'name': 'b', 'score': 20, 'r': 2}, {'name': 'c', 'score': 20, 'r': 2}, {'name': 'd', 'score': 30, 'r': 4}]
     """
     return RankExpr("rank")
@@ -1440,10 +1440,10 @@ def dense_rank() -> RankExpr:
     (e.g. 1, 2, 2, 3).
 
     Examples:
-        >>> from pyfloe import LazyFrame, dense_rank
+        >>> import pyfloe as pf
         >>> data = [{"name": "a", "score": 10}, {"name": "b", "score": 20},
         ...         {"name": "c", "score": 20}, {"name": "d", "score": 30}]
-        >>> LazyFrame(data).with_column("dr", dense_rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
+        >>> pf.LazyFrame(data).with_column("dr", pf.dense_rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
         [{'name': 'a', ..., 'dr': 1}, {'name': 'b', ..., 'dr': 2}, {'name': 'c', ..., 'dr': 2}, {'name': 'd', ..., 'dr': 3}]
     """
     return RankExpr("dense_rank")
@@ -1456,10 +1456,10 @@ def row_number() -> RankExpr:
     starting at 1.
 
     Examples:
-        >>> from pyfloe import LazyFrame, row_number
+        >>> import pyfloe as pf
         >>> data = [{"region": "EU", "amount": 100}, {"region": "EU", "amount": 200}]
-        >>> LazyFrame(data).with_column("rn",
-        ...     row_number().over(partition_by="region", order_by="amount")
+        >>> pf.LazyFrame(data).with_column("rn",
+        ...     pf.row_number().over(partition_by="region", order_by="amount")
         ... ).to_pylist()  # doctest: +SKIP
         [{'region': 'EU', 'amount': 100, 'rn': 1}, {'region': 'EU', 'amount': 200, 'rn': 2}]
     """
@@ -1480,11 +1480,11 @@ def when(condition: Expr, then_val: Any) -> WhenExpr:
         A WhenExpr that can be chained with ``.when()`` and ``.otherwise()``.
 
     Examples:
-        >>> from pyfloe import LazyFrame, col, when
-        >>> lf = LazyFrame([{"amount": 250}, {"amount": 75}, {"amount": 150}])
+        >>> import pyfloe as pf
+        >>> lf = pf.LazyFrame([{"amount": 250}, {"amount": 75}, {"amount": 150}])
         >>> lf.with_column("size",
-        ...     when(col("amount") > 200, "large")
-        ...     .when(col("amount") > 100, "medium")
+        ...     pf.when(pf.col("amount") > 200, "large")
+        ...     .when(pf.col("amount") > 100, "medium")
         ...     .otherwise("small")
         ... ).to_pylist()
         [{'amount': 250, 'size': 'large'}, {'amount': 75, 'size': 'small'}, {'amount': 150, 'size': 'medium'}]

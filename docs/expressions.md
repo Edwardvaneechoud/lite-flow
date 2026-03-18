@@ -5,110 +5,122 @@ Expressions are composable AST nodes. They enable type inference, optimization, 
 ## Column references and literals
 
 ```python
-from pyfloe import col, lit
+import pyfloe as pf
 
-col("amount")           # column reference
-lit(42)                 # literal value
-col("amount") * 1.1     # arithmetic (1.1 auto-wrapped as lit)
+pf.col("amount")           # column reference
+pf.lit(42)                 # literal value
+pf.col("amount") * 1.1     # arithmetic (1.1 auto-wrapped as lit)
 ```
 
 ## Comparisons and logic
 
 ```python
-col("amount") > 100
-col("region") == "EU"
-(col("amount") > 100) & (col("region") == "EU")   # AND
-(col("x") < 0) | (col("x") > 100)                 # OR
-~(col("active"))                                    # NOT
-col("region").is_in(["EU", "APAC"])
-col("value").is_null()
-col("value").is_not_null()
+import pyfloe as pf
+
+pf.col("amount") > 100
+pf.col("region") == "EU"
+(pf.col("amount") > 100) & (pf.col("region") == "EU")   # AND
+(pf.col("x") < 0) | (pf.col("x") > 100)                 # OR
+~(pf.col("active"))                                      # NOT
+pf.col("region").is_in(["EU", "APAC"])
+pf.col("value").is_null()
+pf.col("value").is_not_null()
 ```
 
 ## Arithmetic
 
 ```python
-col("price") * col("quantity")
-col("amount") + lit(100)
-col("total") / col("count")
-col("score") % 10
--col("delta")
-100 + col("amount")                       # reverse ops work
+import pyfloe as pf
+
+pf.col("price") * pf.col("quantity")
+pf.col("amount") + pf.lit(100)
+pf.col("total") / pf.col("count")
+pf.col("score") % 10
+-pf.col("delta")
+100 + pf.col("amount")                       # reverse ops work
 ```
 
 ## Type casting
 
 ```python
-col("amount").cast(str)
-col("id").cast(float)
+import pyfloe as pf
+
+pf.col("amount").cast(str)
+pf.col("id").cast(float)
 ```
 
 ## Conditional logic (CASE WHEN)
 
 ```python
-from pyfloe import when
+import pyfloe as pf
 
-when(col("amount") > 200, "large") \
-    .when(col("amount") > 100, "medium") \
+pf.when(pf.col("amount") > 200, "large") \
+    .when(pf.col("amount") > 100, "medium") \
     .otherwise("small")
 ```
 
 ## String methods
 
 ```python
-col("name").str.upper()              # "ALICE"
-col("name").str.lower()              # "alice"
-col("name").str.strip()              # trim whitespace
-col("name").str.title()              # "Alice"
-col("name").str.len()                # 5
-col("name").str.contains("li")       # True
-col("name").str.startswith("Al")     # True
-col("name").str.endswith("ce")       # True
-col("name").str.replace("A", "a")    # "alice"
-col("name").str.slice(0, 3)          # "Ali"
+import pyfloe as pf
+
+pf.col("name").str.upper()              # "ALICE"
+pf.col("name").str.lower()              # "alice"
+pf.col("name").str.strip()              # trim whitespace
+pf.col("name").str.title()              # "Alice"
+pf.col("name").str.len()                # 5
+pf.col("name").str.contains("li")       # True
+pf.col("name").str.startswith("Al")     # True
+pf.col("name").str.endswith("ce")       # True
+pf.col("name").str.replace("A", "a")    # "alice"
+pf.col("name").str.slice(0, 3)          # "Ali"
 ```
 
 ## Aggregations
 
 ```python
-col("amount").sum()
-col("amount").mean()
-col("amount").min()
-col("amount").max()
-col("amount").count()
-col("amount").n_unique()
-col("amount").first()
-col("amount").last()
+import pyfloe as pf
+
+pf.col("amount").sum()
+pf.col("amount").mean()
+pf.col("amount").min()
+pf.col("amount").max()
+pf.col("amount").count()
+pf.col("amount").n_unique()
+pf.col("amount").first()
+pf.col("amount").last()
 ```
 
 Used with `group_by`:
 
 ```python
+import pyfloe as pf
+
 orders.group_by("region").agg(
-    col("amount").sum().alias("total_revenue"),
-    col("order_id").count().alias("order_count"),
-    col("amount").mean().alias("avg_order"),
+    pf.col("amount").sum().alias("total_revenue"),
+    pf.col("order_id").count().alias("order_count"),
+    pf.col("amount").mean().alias("avg_order"),
 )
 ```
 
 ## Window functions
 
 ```python
-from pyfloe import row_number, rank, dense_rank
+import pyfloe as pf
 
 # Ranking
-row_number().over(partition_by="region", order_by="amount")
-rank().over(partition_by="dept", order_by="salary")
-dense_rank().over(order_by="score")
+pf.row_number().over(partition_by="region", order_by="amount")
+pf.rank().over(partition_by="dept", order_by="salary")
+pf.dense_rank().over(order_by="score")
 
 # Running aggregates
-col("amount").cumsum().over(partition_by="region", order_by="date")
-col("score").cummax().over(order_by="round")
+pf.col("amount").cumsum().over(partition_by="region", order_by="date")
+pf.col("score").cummax().over(order_by="round")
 
 # Lag / Lead
-col("value").lag(1, default=0).over(partition_by="user", order_by="ts")
-col("value").lead(1).over(order_by="ts")
+pf.col("value").lag(1, default=0).over(partition_by="user", order_by="ts")
+pf.col("value").lead(1).over(order_by="ts")
 
 # Window aggregation (partition total on every row)
-col("amount").sum().over(partition_by="region")
+pf.col("amount").sum().over(partition_by="region")
 ```

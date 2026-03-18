@@ -3,22 +3,24 @@
 ## Creating a LazyFrame
 
 ```python
-from pyfloe import LazyFrame, read_csv, from_iter
+import pyfloe as pf
 
-ff = LazyFrame([{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}])
-ff = LazyFrame([user1, user2, user3])  # objects with __dict__
-ff = read_csv("data.csv")
-ff = from_iter(my_generator())
+ff = pf.LazyFrame([{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}])
+ff = pf.LazyFrame([user1, user2, user3])  # objects with __dict__
+ff = pf.read_csv("data.csv")
+ff = pf.from_iter(my_generator())
 ```
 
 ## Selecting, filtering, computing
 
 ```python
+import pyfloe as pf
+
 ff.select("name", "age")
 ff.drop("internal_id")
-ff.filter(col("amount") > 100)
-ff.with_column("tax", col("amount") * 0.2)
-ff.with_columns(tax=col("amount") * 0.2, q=col("ts").dt.quarter())
+ff.filter(pf.col("amount") > 100)
+ff.with_column("tax", pf.col("amount") * 0.2)
+ff.with_columns(tax=pf.col("amount") * 0.2, q=pf.col("ts").dt.quarter())
 ```
 
 ## Sorting
@@ -40,12 +42,14 @@ orders.sort("id").join(customers.sort("id"), on="id", sorted=True)
 ## Grouping and aggregation
 
 ```python
+import pyfloe as pf
+
 # Hash aggregation (default)
-ff.group_by("region").agg(col("amount").sum().alias("total"))
+ff.group_by("region").agg(pf.col("amount").sum().alias("total"))
 
 # Sorted streaming aggregation — O(1) memory per group
 ff.sort("region").group_by("region", sorted=True).agg(
-    col("amount").sum().alias("total")
+    pf.col("amount").sum().alias("total")
 )
 ```
 

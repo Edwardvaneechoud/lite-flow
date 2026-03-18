@@ -285,6 +285,22 @@ def test_legacy_group_by_api():
     assert totals["US"] == 905.5
 
 
+def test_group_by_missing_column_raises():
+    import pytest
+
+    lf = LazyFrame(ORDERS).select("order_id", "amount")
+    with pytest.raises(ValueError, match=r"group_by column\(s\)"):
+        lf.group_by("region")
+
+
+def test_group_by_agg_missing_column_raises():
+    import pytest
+
+    lf = LazyFrame(ORDERS).select("order_id")
+    with pytest.raises(ValueError, match=r"references column\(s\)"):
+        lf.group_by("order_id").agg(col("amount").sum())
+
+
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
 
@@ -608,6 +624,21 @@ def test_to_pydict():
     assert d["order_id"] == [1, 2, 3, 4, 5, 6]
 
 
+def test_to_batches_lazy_frame():
+    data = [{"a": 1}, {"a": 2}, {"a": 3}]
+    lf = LazyFrame(data)
+    batches = list(lf.to_batches())
+    assert batches == [data]
+
+
+def test_to_batches_materialized_frame():
+    data = [{"a": 1}, {"a": 2}]
+    lf = LazyFrame(data)
+    lf.collect()
+    batches = list(lf.to_batches())
+    assert batches == [data]
+
+
 def test_apply_to_specific_columns():
     result = LazyFrame(ORDERS).apply(str, columns=["amount"]).to_pylist()
     assert result[0]["amount"] == "250.0"
@@ -701,6 +732,29 @@ def test_collect_materializes():
     pipeline.collect()
     assert pipeline.is_materialized
     assert "materialized" in repr(pipeline)
+
+
+def test_display_uses_materialized_data():
+    stored_schema = LazyFrame(ORDERS).select("order_id", "amount").schema
+
+    class ExplodingPlan:
+        def execute(self):
+            raise AssertionError("execute should not be called")
+
+        def execute_batched(self):
+            raise AssertionError("execute_batched should not be called")
+
+        def schema(self):
+            return stored_schema
+
+        def fast_count(self):
+            return None
+
+    lf = LazyFrame(ORDERS).select("order_id", "amount")
+    lf.collect()
+    lf._plan = ExplodingPlan()
+    lf._optimized = None
+    lf.display(n=1)
 
 
 def test_repeated_collect_is_idempotent():

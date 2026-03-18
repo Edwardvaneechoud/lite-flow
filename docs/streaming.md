@@ -3,20 +3,20 @@
 ## `from_iter` — any generator or iterator
 
 ```python
-from pyfloe import from_iter, col
+import pyfloe as pf
 
 def fetch_events():
     for line in open("log.txt"):
         yield json.loads(line)
 
-ff = from_iter(fetch_events())
-ff.filter(col("level") == "ERROR").to_csv("errors.csv")
+ff = pf.from_iter(fetch_events())
+ff.filter(pf.col("level") == "ERROR").to_csv("errors.csv")
 ```
 
 ## `from_chunks` — batched / paginated sources
 
 ```python
-from pyfloe import from_chunks
+import pyfloe as pf
 
 def fetch_pages():
     page = 1
@@ -27,7 +27,7 @@ def fetch_pages():
         yield rows
         page += 1
 
-ff = from_chunks(fetch_pages)
+ff = pf.from_chunks(fetch_pages)
 ```
 
 ## `Stream` — true single-pass pipeline
@@ -35,11 +35,11 @@ ff = from_chunks(fetch_pages)
 `Stream` compiles transforms into a flat loop for maximum throughput. No intermediate iterators or plan-tree overhead.
 
 ```python
-from pyfloe import Stream, col, when
+import pyfloe as pf
 
-Stream.from_iter(event_source(), columns=["ts", "event", "value"]) \
-    .filter(col("event") == "error") \
+pf.Stream.from_iter(event_source(), columns=["ts", "event", "value"]) \
+    .filter(pf.col("event") == "error") \
     .with_column("severity",
-        when(col("value") > 100, "critical").otherwise("warning")) \
+        pf.when(pf.col("value") > 100, "critical").otherwise("warning")) \
     .to_csv("errors.csv")
 ```

@@ -157,6 +157,7 @@ def _read_delimited(
     cast_types: bool = True,
     source_label: str = "CSV",
 ) -> _FileStreamNode:
+    path = os.path.expanduser(path)
     with open(path, encoding=encoding, newline="") as f:
         reader = csv.reader(f, delimiter=delimiter, quotechar=quotechar)
 
@@ -258,11 +259,11 @@ def read_csv(
         A LazyFrame. Data streams from disk when evaluated.
 
     Examples:
-        >>> from pyfloe import read_csv, col
-        >>> lf = read_csv("orders.csv")  # doctest: +SKIP
+        >>> import pyfloe as pf
+        >>> lf = pf.read_csv("orders.csv")  # doctest: +SKIP
         >>> lf.schema.dtypes  # doctest: +SKIP
         {'order_id': <class 'int'>, 'amount': <class 'float'>, ...}
-        >>> lf.filter(col("amount") > 100).to_pylist()  # doctest: +SKIP
+        >>> lf.filter(pf.col("amount") > 100).to_pylist()  # doctest: +SKIP
         [{'order_id': 1, 'amount': 250.0, ...}, ...]
     """
     from .core import LazyFrame
@@ -295,8 +296,8 @@ def read_tsv(path: str, **kwargs: Any) -> LazyFrame:
         A LazyFrame.
 
     Examples:
-        >>> from pyfloe import read_tsv
-        >>> lf = read_tsv("data.tsv")  # doctest: +SKIP
+        >>> import pyfloe as pf
+        >>> lf = pf.read_tsv("data.tsv")  # doctest: +SKIP
         >>> lf.to_pylist()  # doctest: +SKIP
         [{'name': 'Alice', 'score': 95}, ...]
     """
@@ -328,17 +329,18 @@ def read_jsonl(
         A LazyFrame.
 
     Examples:
-        >>> from pyfloe import read_jsonl, col
-        >>> lf = read_jsonl("events.jsonl")  # doctest: +SKIP
-        >>> lf.filter(col("event") == "click").to_pylist()  # doctest: +SKIP
+        >>> import pyfloe as pf
+        >>> lf = pf.read_jsonl("events.jsonl")  # doctest: +SKIP
+        >>> lf.filter(pf.col("event") == "click").to_pylist()  # doctest: +SKIP
         [{'event': 'click', 'user_id': 42, ...}, ...]
 
         Read only specific columns:
 
-        >>> lf = read_jsonl("events.jsonl", columns=["event", "user_id"])  # doctest: +SKIP
+        >>> lf = pf.read_jsonl("events.jsonl", columns=["event", "user_id"])  # doctest: +SKIP
     """
     from .core import LazyFrame
 
+    path = os.path.expanduser(path)
     all_keys: list = []
     seen: set = set()
     sample_dicts: list[dict] = []
@@ -403,13 +405,14 @@ def read_json(
         ValueError: If the JSON file does not contain a top-level array.
 
     Examples:
-        >>> from pyfloe import read_json
-        >>> lf = read_json("cities.json")  # doctest: +SKIP
+        >>> import pyfloe as pf
+        >>> lf = pf.read_json("cities.json")  # doctest: +SKIP
         >>> lf.to_pylist()  # doctest: +SKIP
         [{'city': 'NYC', 'pop': 8336817}, ...]
     """
     from .core import LazyFrame
 
+    path = os.path.expanduser(path)
     with open(path, encoding=encoding) as f:
         data = json.load(f)
 
@@ -448,8 +451,8 @@ def read_fixed_width(
         A LazyFrame.
 
     Examples:
-        >>> from pyfloe import read_fixed_width
-        >>> lf = read_fixed_width("people.txt", widths=[10, 4, 14], has_header=True)  # doctest: +SKIP
+        >>> import pyfloe as pf
+        >>> lf = pf.read_fixed_width("people.txt", widths=[10, 4, 14], has_header=True)  # doctest: +SKIP
         >>> lf.to_pylist()  # doctest: +SKIP
         [{'NAME': 'Alice', 'AGE': 30, 'CITY': 'New York'}, ...]
     """
@@ -463,6 +466,8 @@ def read_fixed_width(
     for w in widths:
         positions.append((start, start + w))
         start += w
+
+    path = os.path.expanduser(path)
 
     def split_line(line: str) -> list[str]:
         vals = []
@@ -531,14 +536,14 @@ def read_parquet(
         ImportError: If pyarrow is not installed.
 
     Examples:
-        >>> from pyfloe import read_parquet, col
-        >>> lf = read_parquet("data.parquet")  # doctest: +SKIP
-        >>> lf.filter(col("score") > 85).select("name", "score").to_pylist()  # doctest: +SKIP
+        >>> import pyfloe as pf
+        >>> lf = pf.read_parquet("data.parquet")  # doctest: +SKIP
+        >>> lf.filter(pf.col("score") > 85).select("name", "score").to_pylist()  # doctest: +SKIP
         [{'name': 'Alice', 'score': 95.5}, ...]
 
         Read only specific columns:
 
-        >>> lf = read_parquet("data.parquet", columns=["id", "score"])  # doctest: +SKIP
+        >>> lf = pf.read_parquet("data.parquet", columns=["id", "score"])  # doctest: +SKIP
     """
     from .core import LazyFrame
 
@@ -551,6 +556,7 @@ def read_parquet(
             "Or use read_csv/read_jsonl for zero-dependency file reading."
         )
 
+    path = os.path.expanduser(path)
     pf = pq.ParquetFile(path)
     arrow_schema = pf.schema_arrow
 
@@ -601,6 +607,7 @@ def read_parquet(
 def _to_csv_impl(
     lf: LazyFrame, path: str, delimiter: str = ",", header: bool = True, encoding: str = "utf-8"
 ) -> None:
+    path = os.path.expanduser(path)
     with open(path, "w", encoding=encoding, newline="") as f:
         writer = csv.writer(f, delimiter=delimiter)
         if header:
@@ -610,6 +617,7 @@ def _to_csv_impl(
 
 
 def _to_jsonl_impl(lf: LazyFrame, path: str, encoding: str = "utf-8") -> None:
+    path = os.path.expanduser(path)
     cols = lf.columns
     with open(path, "w", encoding=encoding) as f:
         for row in lf._plan.execute():
@@ -620,6 +628,7 @@ def _to_jsonl_impl(lf: LazyFrame, path: str, encoding: str = "utf-8") -> None:
 def _to_json_impl(
     lf: LazyFrame, path: str, encoding: str = "utf-8", indent: int | None = None
 ) -> None:
+    path = os.path.expanduser(path)
     cols = lf.columns
     rows = []
     for row in lf._plan.execute():
@@ -635,6 +644,7 @@ def _to_parquet_impl(lf: LazyFrame, path: str, **kwargs: Any) -> None:
     except ImportError:
         raise ImportError("to_parquet requires pyarrow. Install with: pip install pyarrow")
 
+    path = os.path.expanduser(path)
     data = lf.to_pydict()
     table = pa.table(data)
     pq.write_table(table, path, **kwargs)

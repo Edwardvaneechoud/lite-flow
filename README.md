@@ -5,12 +5,12 @@
 pyfloe is a pure-Python dataframe library with lazy evaluation, query optimization, and type safety — no external dependencies required.
 
 ```python
-from pyfloe import LazyFrame, read_csv, col, row_number
+import pyfloe as pf
 
 result = (
-    read_csv("orders.csv")
-    .filter(col("amount") > 100)
-    .with_column("rank", row_number()
+    pf.read_csv("orders.csv")
+    .filter(pf.col("amount") > 100)
+    .with_column("rank", pf.row_number()
         .over(partition_by="region", order_by="amount"))
     .select("order_id", "region", "amount", "rank")
     .sort("region", "rank")

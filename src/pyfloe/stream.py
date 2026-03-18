@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from collections.abc import Callable, Iterable, Iterator
 from itertools import chain, islice
 from typing import TYPE_CHECKING, Any
@@ -63,11 +64,11 @@ def from_iter(
     Examples:
         From a generator:
 
-        >>> from pyfloe import from_iter, col
+        >>> import pyfloe as pf
         >>> def gen():
         ...     for i in range(5):
         ...         yield {"id": i, "value": i * 1.5}
-        >>> from_iter(gen()).to_pylist()
+        >>> pf.from_iter(gen()).to_pylist()
         [{'id': 0, 'value': 0.0}, {'id': 1, 'value': 1.5}, {'id': 2, 'value': 3.0}, {'id': 3, 'value': 4.5}, {'id': 4, 'value': 6.0}]
 
         From a replayable callable factory:
@@ -230,11 +231,11 @@ def from_chunks(
     Examples:
         From a replayable chunk factory:
 
-        >>> from pyfloe import from_chunks
+        >>> import pyfloe as pf
         >>> def make_chunks():
         ...     yield [{"n": 1}, {"n": 2}]
         ...     yield [{"n": 3}]
-        >>> lf = from_chunks(make_chunks)
+        >>> lf = pf.from_chunks(make_chunks)
         >>> lf.to_pylist()
         [{'n': 1}, {'n': 2}, {'n': 3}]
 
@@ -350,14 +351,14 @@ class Stream:
     ``.to_pylist()``, or ``.collect()``.
 
     Examples:
-        >>> from pyfloe import Stream, col
+        >>> import pyfloe as pf
         >>> def gen():
         ...     for i in range(100):
         ...         yield {"id": i, "value": i * 2.0}
         >>> result = (
-        ...     Stream.from_iter(gen())
-        ...     .filter(col("value") > 190)
-        ...     .with_column("label", col("id").cast(str))
+        ...     pf.Stream.from_iter(gen())
+        ...     .filter(pf.col("value") > 190)
+        ...     .with_column("label", pf.col("id").cast(str))
         ...     .select("id", "value", "label")
         ...     .to_pylist()
         ... )
@@ -686,6 +687,7 @@ class Stream:
         Examples:
             >>> Stream.from_iter(gen()).filter(col("score") > 50).to_csv("/tmp/out.csv")  # doctest: +SKIP
         """
+        path = os.path.expanduser(path)
         _, out_cols = self._build_processor()
         with open(path, "w", encoding=encoding, newline="") as f:
             writer = csv.writer(f, delimiter=delimiter)
@@ -704,6 +706,7 @@ class Stream:
         Examples:
             >>> Stream.from_iter(gen()).filter(col("ts") > 10).to_jsonl("/tmp/out.jsonl")  # doctest: +SKIP
         """
+        path = os.path.expanduser(path)
         _, out_cols = self._build_processor()
         with open(path, "w", encoding=encoding) as f:
             for row in self._execute():
@@ -762,3 +765,47 @@ class Stream:
         _, out_cols = self._build_processor()
         n_steps = len(self._transforms)
         return f"Stream [{', '.join(out_cols)}] ({n_steps} transforms)"
+
+
+import pyfloe as pf
+
+orders = pf.LazyFrame(
+    [
+        {"order_id": 1, "customer_id": 101, "amount": 250.0, "product": "Widget A"},
+        {"order_id": 2, "customer_id": 102, "amount": 45.0, "product": "Widget B"},
+        {"order_id": 3, "customer_id": 103, "amount": 180.0, "product": "Widget C"},
+        {"order_id": 4, "customer_id": 101, "amount": 320.0, "product": "Widget D"},
+        {"order_id": 5, "customer_id": 104, "amount": 90.0, "product": "Widget A"},
+        {"order_id": 6, "customer_id": 102, "amount": 150.0, "product": "Widget E"},
+    ]
+)
+
+customers = pf.LazyFrame(
+    [
+        {"customer_id": 101, "name": "Alice", "region": "EU", "segment": "Enterprise"},
+        {"customer_id": 102, "name": "Bob", "region": "US", "segment": "SMB"},
+        {"customer_id": 103, "name": "Carlos", "region": "EU", "segment": "Enterprise"},
+        {"customer_id": 104, "name": "Diana", "region": "US", "segment": "Enterprise"},
+    ]
+)
+
+
+result = (
+    orders.join(customers, on="customer_id")  # JoinNode
+    .filter(pf.col("amount") > 100)  # FilterNode
+    .with_column("tax", pf.col("amount") * 0.2)  # WithColumnNode
+    .select("region", "amount", "tax")  # ProjectNode
+)
+
+
+result.schema
+# Schema(
+#   region: str
+#   amount: float
+#   tax: float
+# )
+
+result.is_materialized  # False
+
+
+print(result.explain(optimized=True))

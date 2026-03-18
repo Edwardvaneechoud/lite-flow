@@ -11,16 +11,16 @@ pip install pyfloe
 ## Quick example
 
 ```python
-from pyfloe import LazyFrame, read_csv, col, when, row_number
+import pyfloe as pf
 
 result = (
-    read_csv("orders.csv")                            # lazy — file not read yet
-    .filter(col("amount") > 100)                      # lazy — no rows scanned
-    .with_column("rank", row_number()
+    pf.read_csv("orders.csv")                            # lazy — file not read yet
+    .filter(pf.col("amount") > 100)                      # lazy — no rows scanned
+    .with_column("rank", pf.row_number()
         .over(partition_by="region", order_by="amount"))
     .select("order_id", "region", "amount", "rank")
     .sort("region", "rank")
-    .collect()                                         # NOW it runs
+    .collect()                                            # NOW it runs
 )
 
 result.schema   # Schema was known before collect() — no data touched
@@ -34,11 +34,13 @@ result[0]       # {'order_id': 4, 'region': 'EU', 'amount': 180.0, 'rank': 1}
 Operations build a **query plan** — a tree of nodes describing *what* to do, without doing it. Data flows only when you trigger evaluation:
 
 ```python
+import pyfloe as pf
+
 pipeline = (
-    read_csv("big_file.csv")
-    .filter(col("status") == "active")
-    .join(read_csv("users.csv"), on="user_id")
-    .with_column("score", col("points") * 1.5)
+    pf.read_csv("big_file.csv")
+    .filter(pf.col("status") == "active")
+    .join(pf.read_csv("users.csv"), on="user_id")
+    .with_column("score", pf.col("points") * 1.5)
     .select("user_id", "name", "score")
     .sort("score", ascending=False)
 )
@@ -67,10 +69,12 @@ pipeline.explain()        # Print the plan tree
 Every plan node knows its output schema. You get final types instantly:
 
 ```python
+import pyfloe as pf
+
 pipeline = (
     orders
-    .filter(col("amount") > 100)
-    .with_column("tax", col("amount") * 0.2)
+    .filter(pf.col("amount") > 100)
+    .with_column("tax", pf.col("amount") * 0.2)
     .join(customers, on="customer_id")
     .rename({"amount": "subtotal"})
     .select("order_id", "subtotal", "tax")
