@@ -1,6 +1,6 @@
 # File I/O
 
-Functions for reading and writing data files. All readers return a lazy Floe — data is not loaded until evaluation is triggered.
+Functions for reading and writing data files. All readers return a lazy LazyFrame — data is not loaded until evaluation is triggered.
 
 ---
 

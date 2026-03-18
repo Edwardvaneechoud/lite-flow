@@ -1,12 +1,12 @@
 # Operations
 
-## Creating a Floe
+## Creating a LazyFrame
 
 ```python
-from pyfloe import Floe, read_csv, from_iter
+from pyfloe import LazyFrame, read_csv, from_iter
 
-ff = Floe([{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}])
-ff = Floe([user1, user2, user3])  # objects with __dict__
+ff = LazyFrame([{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}])
+ff = LazyFrame([user1, user2, user3])  # objects with __dict__
 ff = read_csv("data.csv")
 ff = from_iter(my_generator())
 ```
@@ -58,7 +58,7 @@ ff.union(other_ff)
 ff.apply(str, columns=["amount"])
 ff.head(10)
 ff[0]          # first row as dict
-ff[5:10]       # slice → new Floe
+ff[5:10]       # slice → new LazyFrame
 ```
 
 ## Query plan and optimizer

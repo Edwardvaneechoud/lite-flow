@@ -37,39 +37,91 @@ def _make_key_fn(indices):
 
 
 class PlanNode:
+    """Abstract base class for all query plan nodes.
+
+    Every node in the query plan tree inherits from ``PlanNode`` and
+    implements the volcano / iterator execution model.  Data flows
+    upward through the tree: a parent node pulls rows from its children
+    by calling ``execute()`` or ``execute_batched()``.
+    """
+
     __slots__ = ()
 
     def schema(self) -> LazySchema:
+        """Return the output schema of this node.
+
+        Returns:
+            The schema describing columns and types produced by this node.
+        """
         raise NotImplementedError
 
     def execute(self) -> Iterator[tuple]:
+        """Yield rows one at a time by flattening batched output.
+
+        Returns:
+            An iterator of tuples, each representing one row.
+        """
         return chain.from_iterable(self.execute_batched())
 
     def execute_batched(self) -> Iterator[list[tuple]]:
+        """Yield rows in batches of up to ``_BATCH_SIZE``.
+
+        Returns:
+            An iterator of lists, where each list contains up to 1024 row tuples.
+        """
         raise NotImplementedError
 
     def fast_count(self) -> int | None:
+        """Return the exact row count without executing, if known.
+
+        Returns:
+            The row count, or ``None`` if it cannot be determined cheaply.
+        """
         return None
 
     def children(self) -> list[PlanNode]:
+        """Return the direct child nodes of this plan node.
+
+        Returns:
+            A list of child ``PlanNode`` instances (empty for leaf nodes).
+        """
         return []
 
     def explain(self, indent: int = 0) -> str:
-        prefix = '  ' * indent
-        lines = [f'{prefix}{self._explain_self()}']
+        """Return a human-readable representation of the plan tree.
+
+        Args:
+            indent: Current indentation level (used for recursive calls).
+
+        Returns:
+            A multi-line string showing this node and all descendants.
+        """
+        prefix = "  " * indent
+        lines = [f"{prefix}{self._explain_self()}"]
         for child in self.children():
             lines.append(child.explain(indent + 1))
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _explain_self(self) -> str:
         return self.__class__.__name__
 
 
 class ScanNode(PlanNode):
-    __slots__ = ('_data', '_columns', '_schema')
+    """Leaf node that reads from an in-memory list of row tuples.
 
-    def __init__(self, data: list, columns: list[str],
-                 lazy_schema: LazySchema | None = None):
+    This is the most common data source node, created when a ``LazyFrame``
+    is constructed from Python data.  It supports ``fast_count`` because
+    the full dataset is already materialised.
+
+    Args:
+        data: List of row tuples.
+        columns: Column names corresponding to tuple positions.
+        lazy_schema: Optional pre-computed schema; inferred from *data* if omitted.
+    """
+
+    __slots__ = ("_data", "_columns", "_schema")
+
+    def __init__(self, data: list, columns: list[str], lazy_schema: LazySchema | None = None):
         self._data = data
         self._columns = list(columns)
         self._schema = lazy_schema
@@ -82,21 +134,39 @@ class ScanNode(PlanNode):
     def execute_batched(self) -> Iterator[list[tuple]]:
         data = self._data
         for i in range(0, len(data), _BATCH_SIZE):
-            yield data[i:i + _BATCH_SIZE]
+            yield data[i : i + _BATCH_SIZE]
 
     def fast_count(self) -> int | None:
         return len(self._data)
 
     def _explain_self(self):
         n = len(self._data)
-        return f'Scan [{", ".join(self._columns)}] ({n} rows)'
+        return f"Scan [{', '.join(self._columns)}] ({n} rows)"
 
 
 class IteratorSourceNode(PlanNode):
-    __slots__ = ('_columns', '_schema', '_factory', '_source_label')
+    """Leaf node that reads from a lazily-evaluated iterator factory.
 
-    def __init__(self, columns: list[str], lazy_schema: LazySchema,
-                 iterator_factory, source_label: str = 'Iterator'):
+    Each call to ``execute_batched`` invokes the factory to produce a
+    fresh iterator, enabling repeatable reads from streaming sources
+    such as file readers.
+
+    Args:
+        columns: Column names for the produced rows.
+        lazy_schema: Schema describing the output columns.
+        iterator_factory: A zero-argument callable that returns an iterator of row tuples.
+        source_label: Descriptive label shown in ``explain`` output.
+    """
+
+    __slots__ = ("_columns", "_schema", "_factory", "_source_label")
+
+    def __init__(
+        self,
+        columns: list[str],
+        lazy_schema: LazySchema,
+        iterator_factory,
+        source_label: str = "Iterator",
+    ):
         self._columns = columns
         self._schema = lazy_schema
         self._factory = iterator_factory
@@ -109,14 +179,27 @@ class IteratorSourceNode(PlanNode):
         return _batched(self._factory())
 
     def _explain_self(self):
-        return f'{self._source_label} [{", ".join(self._columns)}]'
+        return f"{self._source_label} [{', '.join(self._columns)}]"
 
 
 class ProjectNode(PlanNode):
-    __slots__ = ('child', '_columns', '_exprs')
+    """Selects or reorders columns, or evaluates computed expressions.
 
-    def __init__(self, child: PlanNode, columns: list[str] | None = None,
-                 exprs: list[Expr] | None = None):
+    When *columns* is provided, only those columns are kept (a SQL ``SELECT``).
+    When *exprs* is provided, each expression is evaluated to produce a new
+    set of output columns.
+
+    Args:
+        child: Input plan node.
+        columns: Column names to select.  Mutually exclusive with *exprs*.
+        exprs: Expressions to evaluate.  Mutually exclusive with *columns*.
+    """
+
+    __slots__ = ("child", "_columns", "_exprs")
+
+    def __init__(
+        self, child: PlanNode, columns: list[str] | None = None, exprs: list[Expr] | None = None
+    ):
         self.child = child
         self._columns = columns
         self._exprs = exprs
@@ -161,12 +244,22 @@ class ProjectNode(PlanNode):
 
     def _explain_self(self):
         if self._columns:
-            return f'Project [{", ".join(self._columns)}]'
-        return f'Project [{", ".join(repr(e) for e in self._exprs)}]'
+            return f"Project [{', '.join(self._columns)}]"
+        return f"Project [{', '.join(repr(e) for e in self._exprs)}]"
 
 
 class FilterNode(PlanNode):
-    __slots__ = ('child', 'predicate')
+    """Filters rows by evaluating a boolean predicate expression.
+
+    Only rows for which *predicate* evaluates to a truthy value are
+    passed through.  The output schema is unchanged.
+
+    Args:
+        child: Input plan node.
+        predicate: Boolean expression used to filter rows.
+    """
+
+    __slots__ = ("child", "predicate")
 
     def __init__(self, child: PlanNode, predicate: Expr):
         self.child = child
@@ -187,15 +280,34 @@ class FilterNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        return f'Filter [{self.predicate}]'
+        return f"Filter [{self.predicate}]"
 
 
 class JoinNode(PlanNode):
-    __slots__ = ('left', 'right', 'left_on', 'right_on', 'how')
+    """Hash-based join of two input plan nodes.
 
-    def __init__(self, left: PlanNode, right: PlanNode,
-                 left_on: list[str], right_on: list[str],
-                 how: JoinHow = 'inner'):
+    Materialises the right side into a hash table keyed on the join
+    columns, then streams the left side and probes the table.
+    Supports ``inner``, ``left``, and ``full`` join modes.
+
+    Args:
+        left: Left input plan node.
+        right: Right input plan node.
+        left_on: Join-key column names from the left side.
+        right_on: Join-key column names from the right side.
+        how: Join type — ``'inner'``, ``'left'``, or ``'full'``.
+    """
+
+    __slots__ = ("left", "right", "left_on", "right_on", "how")
+
+    def __init__(
+        self,
+        left: PlanNode,
+        right: PlanNode,
+        left_on: list[str],
+        right_on: list[str],
+        how: JoinHow = "inner",
+    ):
         self.left = left
         self.right = right
         self.left_on = left_on
@@ -232,13 +344,13 @@ class JoinNode(PlanNode):
                     matched_keys.add(key)
                     for right_row in matches:
                         buf.append(left_row + right_row)
-                elif self.how in ('left', 'full'):
+                elif self.how in ("left", "full"):
                     buf.append(left_row + null_right)
                 if len(buf) >= _BATCH_SIZE:
                     yield buf
                     buf = []
 
-        if self.how == 'full':
+        if self.how == "full":
             for key, rows in right_ht.items():
                 if key not in matched_keys:
                     for right_row in rows:
@@ -254,14 +366,25 @@ class JoinNode(PlanNode):
         return [self.left, self.right]
 
     def _explain_self(self):
-        return f'Join [{self.how}] {self.left_on} = {self.right_on}'
+        return f"Join [{self.how}] {self.left_on} = {self.right_on}"
 
 
 class AggNode(PlanNode):
-    __slots__ = ('child', 'group_by', 'agg_exprs')
+    """Hash-based group-by aggregation node.
 
-    def __init__(self, child: PlanNode, group_by: list[str],
-                 agg_exprs: list[AggExpr]):
+    Groups rows by *group_by* columns using a hash map and maintains
+    running accumulators for each aggregation expression.  Memory usage
+    is O(k) where k is the number of distinct groups.
+
+    Args:
+        child: Input plan node.
+        group_by: Column names to group by.
+        agg_exprs: Aggregation expressions to evaluate per group.
+    """
+
+    __slots__ = ("child", "group_by", "agg_exprs")
+
+    def __init__(self, child: PlanNode, group_by: list[str], agg_exprs: list[AggExpr]):
         self.child = child
         self.group_by = group_by
         self.agg_exprs = agg_exprs
@@ -302,8 +425,7 @@ class AggNode(PlanNode):
 
         buf: list = []
         for key, accs in accumulators.items():
-            agg_vals = tuple(_finalize_acc(accs[i], self.agg_exprs[i])
-                            for i in range(n_aggs))
+            agg_vals = tuple(_finalize_acc(accs[i], self.agg_exprs[i]) for i in range(n_aggs))
             buf.append(key + agg_vals)
             if len(buf) >= _BATCH_SIZE:
                 yield buf
@@ -315,186 +437,209 @@ class AggNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        aggs = ', '.join(repr(a) for a in self.agg_exprs)
-        return f'Aggregate by=[{", ".join(self.group_by)}] aggs=[{aggs}]'
+        aggs = ", ".join(repr(a) for a in self.agg_exprs)
+        return f"Aggregate by=[{', '.join(self.group_by)}] aggs=[{aggs}]"
 
 
 def _init_acc(agg: AggExpr) -> dict:
     kind = agg.agg_name
-    if kind == 'sum':
-        return {'s': 0}
-    elif kind == 'count':
-        return {'n': 0}
-    elif kind == 'mean':
-        return {'s': 0.0, 'n': 0}
-    elif kind == 'min':
-        return {'v': None}
-    elif kind == 'max':
-        return {'v': None}
-    elif kind == 'first':
-        return {'v': None, 'set': False}
-    elif kind == 'last':
-        return {'v': None}
-    elif kind == 'n_unique':
-        return {'s': set()}
+    if kind == "sum":
+        return {"s": 0}
+    elif kind == "count":
+        return {"n": 0}
+    elif kind == "mean":
+        return {"s": 0.0, "n": 0}
+    elif kind == "min":
+        return {"v": None}
+    elif kind == "max":
+        return {"v": None}
+    elif kind == "first":
+        return {"v": None, "set": False}
+    elif kind == "last":
+        return {"v": None}
+    elif kind == "n_unique":
+        return {"s": set()}
     else:
-        return {'vals': []}
+        return {"vals": []}
+
 
 def _update_acc(acc: dict, agg: AggExpr, val) -> None:
     kind = agg.agg_name
-    if kind == 'sum':
+    if kind == "sum":
         if val is not None:
-            acc['s'] += val
-    elif kind == 'count':
+            acc["s"] += val
+    elif kind == "count":
         if val is not None:
-            acc['n'] += 1
-    elif kind == 'mean':
+            acc["n"] += 1
+    elif kind == "mean":
         if val is not None:
-            acc['s'] += val
-            acc['n'] += 1
-    elif kind == 'min':
+            acc["s"] += val
+            acc["n"] += 1
+    elif kind == "min":
         if val is not None:
-            if acc['v'] is None or val < acc['v']:
-                acc['v'] = val
-    elif kind == 'max':
+            if acc["v"] is None or val < acc["v"]:
+                acc["v"] = val
+    elif kind == "max":
         if val is not None:
-            if acc['v'] is None or val > acc['v']:
-                acc['v'] = val
-    elif kind == 'first':
-        if not acc['set']:
-            acc['v'] = val
-            acc['set'] = True
-    elif kind == 'last':
-        acc['v'] = val
-    elif kind == 'n_unique':
+            if acc["v"] is None or val > acc["v"]:
+                acc["v"] = val
+    elif kind == "first":
+        if not acc["set"]:
+            acc["v"] = val
+            acc["set"] = True
+    elif kind == "last":
+        acc["v"] = val
+    elif kind == "n_unique":
         if val is not None:
-            acc['s'].add(val)
+            acc["s"].add(val)
     else:
-        acc['vals'].append(val)
+        acc["vals"].append(val)
+
 
 def _finalize_acc(acc: dict, agg: AggExpr):
     kind = agg.agg_name
-    if kind == 'sum':
-        return acc['s']
-    elif kind == 'count':
-        return acc['n']
-    elif kind == 'mean':
-        return acc['s'] / acc['n'] if acc['n'] else 0.0
-    elif kind in ('min', 'max', 'first', 'last'):
-        return acc['v']
-    elif kind == 'n_unique':
-        return len(acc['s'])
+    if kind == "sum":
+        return acc["s"]
+    elif kind == "count":
+        return acc["n"]
+    elif kind == "mean":
+        return acc["s"] / acc["n"] if acc["n"] else 0.0
+    elif kind in ("min", "max", "first", "last"):
+        return acc["v"]
+    elif kind == "n_unique":
+        return len(acc["s"])
     else:
-        return agg.eval_agg(acc['vals'])
+        return agg.eval_agg(acc["vals"])
 
 
 def _init_pivot_acc(agg_name: AggFunc) -> dict:
-    if agg_name == 'sum':
-        return {'s': 0}
-    elif agg_name == 'count':
-        return {'n': 0}
-    elif agg_name == 'mean':
-        return {'s': 0.0, 'n': 0}
-    elif agg_name == 'min':
-        return {'v': None}
-    elif agg_name == 'max':
-        return {'v': None}
-    elif agg_name == 'first':
-        return {'v': None, 'set': False}
-    elif agg_name == 'last':
-        return {'v': None}
+    if agg_name == "sum":
+        return {"s": 0}
+    elif agg_name == "count":
+        return {"n": 0}
+    elif agg_name == "mean":
+        return {"s": 0.0, "n": 0}
+    elif agg_name == "min":
+        return {"v": None}
+    elif agg_name == "max":
+        return {"v": None}
+    elif agg_name == "first":
+        return {"v": None, "set": False}
+    elif agg_name == "last":
+        return {"v": None}
     else:
-        return {'v': None, 'set': False}
+        return {"v": None, "set": False}
 
 
 def _update_pivot_acc(acc: dict, agg_name: AggFunc, val) -> None:
-    if agg_name == 'sum':
+    if agg_name == "sum":
         if val is not None:
-            acc['s'] += val
-    elif agg_name == 'count':
+            acc["s"] += val
+    elif agg_name == "count":
         if val is not None:
-            acc['n'] += 1
-    elif agg_name == 'mean':
+            acc["n"] += 1
+    elif agg_name == "mean":
         if val is not None:
-            acc['s'] += val
-            acc['n'] += 1
-    elif agg_name == 'min':
+            acc["s"] += val
+            acc["n"] += 1
+    elif agg_name == "min":
         if val is not None:
-            if acc['v'] is None or val < acc['v']:
-                acc['v'] = val
-    elif agg_name == 'max':
+            if acc["v"] is None or val < acc["v"]:
+                acc["v"] = val
+    elif agg_name == "max":
         if val is not None:
-            if acc['v'] is None or val > acc['v']:
-                acc['v'] = val
-    elif agg_name == 'first':
-        if not acc['set']:
-            acc['v'] = val
-            acc['set'] = True
-    elif agg_name == 'last':
-        acc['v'] = val
+            if acc["v"] is None or val > acc["v"]:
+                acc["v"] = val
+    elif agg_name == "first":
+        if not acc["set"]:
+            acc["v"] = val
+            acc["set"] = True
+    elif agg_name == "last":
+        acc["v"] = val
 
 
 def _finalize_pivot_acc(acc: dict, agg_name: AggFunc):
-    if agg_name == 'sum':
-        return acc['s']
-    elif agg_name == 'count':
-        return acc['n']
-    elif agg_name == 'mean':
-        return acc['s'] / acc['n'] if acc['n'] else 0.0
-    elif agg_name in ('min', 'max', 'first', 'last'):
-        return acc['v']
-    return acc.get('v')
+    if agg_name == "sum":
+        return acc["s"]
+    elif agg_name == "count":
+        return acc["n"]
+    elif agg_name == "mean":
+        return acc["s"] / acc["n"] if acc["n"] else 0.0
+    elif agg_name in ("min", "max", "first", "last"):
+        return acc["v"]
+    return acc.get("v")
 
 
 def _make_updater(agg: AggExpr):
     kind = agg.agg_name
-    if kind == 'sum':
+    if kind == "sum":
+
         def _update(acc, val):
             if val is not None:
-                acc['s'] += val
-    elif kind == 'count':
+                acc["s"] += val
+    elif kind == "count":
+
         def _update(acc, val):
             if val is not None:
-                acc['n'] += 1
-    elif kind == 'mean':
+                acc["n"] += 1
+    elif kind == "mean":
+
         def _update(acc, val):
             if val is not None:
-                acc['s'] += val
-                acc['n'] += 1
-    elif kind == 'min':
+                acc["s"] += val
+                acc["n"] += 1
+    elif kind == "min":
+
         def _update(acc, val):
             if val is not None:
-                if acc['v'] is None or val < acc['v']:
-                    acc['v'] = val
-    elif kind == 'max':
+                if acc["v"] is None or val < acc["v"]:
+                    acc["v"] = val
+    elif kind == "max":
+
         def _update(acc, val):
             if val is not None:
-                if acc['v'] is None or val > acc['v']:
-                    acc['v'] = val
-    elif kind == 'first':
+                if acc["v"] is None or val > acc["v"]:
+                    acc["v"] = val
+    elif kind == "first":
+
         def _update(acc, val):
-            if not acc['set']:
-                acc['v'] = val
-                acc['set'] = True
-    elif kind == 'last':
+            if not acc["set"]:
+                acc["v"] = val
+                acc["set"] = True
+    elif kind == "last":
+
         def _update(acc, val):
-            acc['v'] = val
-    elif kind == 'n_unique':
+            acc["v"] = val
+    elif kind == "n_unique":
+
         def _update(acc, val):
             if val is not None:
-                acc['s'].add(val)
+                acc["s"].add(val)
     else:
         _agg = agg
+
         def _update(acc, val):
-            acc['vals'].append(val)
+            acc["vals"].append(val)
+
     return _update
 
 
 class SortedAggNode(PlanNode):
-    __slots__ = ('child', 'group_by', 'agg_exprs')
+    """Streaming group-by aggregation for pre-sorted input.
 
-    def __init__(self, child: PlanNode, group_by: list[str],
-                 agg_exprs: list[AggExpr]):
+    Assumes the child yields rows already sorted by the *group_by*
+    columns.  Groups are detected by key changes, so only one
+    accumulator set is active at a time — O(1) memory per group.
+
+    Args:
+        child: Input plan node (must be pre-sorted by *group_by*).
+        group_by: Column names to group by.
+        agg_exprs: Aggregation expressions to evaluate per group.
+    """
+
+    __slots__ = ("child", "group_by", "agg_exprs")
+
+    def __init__(self, child: PlanNode, group_by: list[str], agg_exprs: list[AggExpr]):
         self.child = child
         self.group_by = group_by
         self.agg_exprs = agg_exprs
@@ -525,8 +670,9 @@ class SortedAggNode(PlanNode):
             for row in group_rows:
                 for i in range(n_aggs):
                     updaters[i](accs[i], compiled_evals[i](row))
-            buf.append(key + tuple(_finalize_acc(accs[i], self.agg_exprs[i])
-                              for i in range(n_aggs)))
+            buf.append(
+                key + tuple(_finalize_acc(accs[i], self.agg_exprs[i]) for i in range(n_aggs))
+            )
             if len(buf) >= _BATCH_SIZE:
                 yield buf
                 buf = []
@@ -537,16 +683,36 @@ class SortedAggNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        aggs = ', '.join(repr(a) for a in self.agg_exprs)
-        return f'SortedAggregate by=[{", ".join(self.group_by)}] aggs=[{aggs}]'
+        aggs = ", ".join(repr(a) for a in self.agg_exprs)
+        return f"SortedAggregate by=[{', '.join(self.group_by)}] aggs=[{aggs}]"
 
 
 class SortedMergeJoinNode(PlanNode):
-    __slots__ = ('left', 'right', 'left_on', 'right_on', 'how')
+    """Sort-merge join for pre-sorted inputs.
 
-    def __init__(self, left: PlanNode, right: PlanNode,
-                 left_on: list[str], right_on: list[str],
-                 how: JoinHow = 'inner'):
+    Both inputs must be sorted on their respective join keys.  Two
+    cursors advance in lockstep, emitting matches when keys are equal.
+    Memory usage is O(1) for one-to-one joins and O(g) for groups with
+    many-to-many matches.
+
+    Args:
+        left: Left input plan node (sorted by *left_on*).
+        right: Right input plan node (sorted by *right_on*).
+        left_on: Join-key column names from the left side.
+        right_on: Join-key column names from the right side.
+        how: Join type — ``'inner'``, ``'left'``, or ``'full'``.
+    """
+
+    __slots__ = ("left", "right", "left_on", "right_on", "how")
+
+    def __init__(
+        self,
+        left: PlanNode,
+        right: PlanNode,
+        left_on: list[str],
+        right_on: list[str],
+        how: JoinHow = "inner",
+    ):
         self.left = left
         self.right = right
         self.left_on = left_on
@@ -578,7 +744,7 @@ class SortedMergeJoinNode(PlanNode):
         try:
             l_row = next(left_iter)
         except StopIteration:
-            if self.how == 'full':
+            if self.how == "full":
                 for r_row in right_iter:
                     yield null_left + r_row
             return
@@ -586,7 +752,7 @@ class SortedMergeJoinNode(PlanNode):
         try:
             r_row = next(right_iter)
         except StopIteration:
-            if self.how in ('left', 'full'):
+            if self.how in ("left", "full"):
                 yield l_row + null_right
                 for l_row in left_iter:
                     yield l_row + null_right
@@ -599,7 +765,7 @@ class SortedMergeJoinNode(PlanNode):
 
         while not l_exhausted and not r_exhausted:
             if lk < rk:
-                if self.how in ('left', 'full'):
+                if self.how in ("left", "full"):
                     yield l_row + null_right
                 try:
                     l_row = next(left_iter)
@@ -607,7 +773,7 @@ class SortedMergeJoinNode(PlanNode):
                 except StopIteration:
                     l_exhausted = True
             elif lk > rk:
-                if self.how == 'full':
+                if self.how == "full":
                     yield null_left + r_row
                 try:
                     r_row = next(right_iter)
@@ -647,12 +813,12 @@ class SortedMergeJoinNode(PlanNode):
                     for rr in right_group:
                         yield lr + rr
 
-        if not l_exhausted and self.how in ('left', 'full'):
+        if not l_exhausted and self.how in ("left", "full"):
             yield l_row + null_right
             for l_row in left_iter:
                 yield l_row + null_right
 
-        if not r_exhausted and self.how == 'full':
+        if not r_exhausted and self.how == "full":
             yield null_left + r_row
             for r_row in right_iter:
                 yield null_left + r_row
@@ -661,14 +827,24 @@ class SortedMergeJoinNode(PlanNode):
         return [self.left, self.right]
 
     def _explain_self(self):
-        return f'SortedMergeJoin [{self.how}] {self.left_on} = {self.right_on}'
+        return f"SortedMergeJoin [{self.how}] {self.left_on} = {self.right_on}"
 
 
 class SortNode(PlanNode):
-    __slots__ = ('child', 'by', 'ascending')
+    """Sorts all rows by one or more columns using Timsort.
 
-    def __init__(self, child: PlanNode, by: list[str],
-                 ascending: list[bool] | None = None):
+    Materialises the full input before sorting.  Multi-column sorts
+    are composed via sequential stable sorts in reverse priority order.
+
+    Args:
+        child: Input plan node.
+        by: Column names to sort by.
+        ascending: Sort direction per column.  Defaults to ascending for all.
+    """
+
+    __slots__ = ("child", "by", "ascending")
+
+    def __init__(self, child: PlanNode, by: list[str], ascending: list[bool] | None = None):
         self.child = child
         self.by = by
         self.ascending = ascending or [True] * len(by)
@@ -685,18 +861,28 @@ class SortNode(PlanNode):
         for idx, asc in reversed(list(zip(indices, self.ascending))):
             data.sort(key=lambda r: (r[idx] is None, r[idx]), reverse=not asc)
         for i in range(0, len(data), _BATCH_SIZE):
-            yield data[i:i + _BATCH_SIZE]
+            yield data[i : i + _BATCH_SIZE]
 
     def children(self):
         return [self.child]
 
     def _explain_self(self):
-        parts = [f'{c} {"↑" if a else "↓"}' for c, a in zip(self.by, self.ascending)]
-        return f'Sort [{", ".join(parts)}]'
+        parts = [f"{c} {'↑' if a else '↓'}" for c, a in zip(self.by, self.ascending)]
+        return f"Sort [{', '.join(parts)}]"
 
 
 class ExplodeNode(PlanNode):
-    __slots__ = ('child', 'column')
+    """Unnests a list-valued column into separate rows.
+
+    For each row, the list in *column* is expanded so that every element
+    produces its own row.  ``None`` values pass through unchanged.
+
+    Args:
+        child: Input plan node.
+        column: Name of the list-valued column to explode.
+    """
+
+    __slots__ = ("child", "column")
 
     def __init__(self, child: PlanNode, column: str):
         self.child = child
@@ -716,7 +902,7 @@ class ExplodeNode(PlanNode):
                     buf.append(row)
                 else:
                     for val in vals:
-                        buf.append(row[:idx] + (val,) + row[idx + 1:])
+                        buf.append(row[:idx] + (val,) + row[idx + 1 :])
                 if len(buf) >= _BATCH_SIZE:
                     yield buf
                     buf = []
@@ -727,15 +913,34 @@ class ExplodeNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        return f'Explode [{self.column}]'
+        return f"Explode [{self.column}]"
 
 
 class UnpivotNode(PlanNode):
-    __slots__ = ('child', 'id_columns', 'value_columns', 'variable_name', 'value_name')
+    """Converts columns into rows (melt / unpivot).
 
-    def __init__(self, child: PlanNode, id_columns: list[str],
-                 value_columns: list[str], variable_name: str = 'variable',
-                 value_name: str = 'value'):
+    Keeps *id_columns* fixed and transforms each *value_columns* entry
+    into a ``(variable, value)`` row pair, similar to pandas ``melt``
+    or SQL ``UNPIVOT``.
+
+    Args:
+        child: Input plan node.
+        id_columns: Columns to keep as identifiers.
+        value_columns: Columns to unpivot into rows.
+        variable_name: Name for the new column holding the original column names.
+        value_name: Name for the new column holding the values.
+    """
+
+    __slots__ = ("child", "id_columns", "value_columns", "variable_name", "value_name")
+
+    def __init__(
+        self,
+        child: PlanNode,
+        id_columns: list[str],
+        value_columns: list[str],
+        variable_name: str = "variable",
+        value_name: str = "value",
+    ):
         self.child = child
         self.id_columns = id_columns
         self.value_columns = value_columns
@@ -786,18 +991,51 @@ class UnpivotNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        return (f'Unpivot id=[{", ".join(self.id_columns)}] '
-                f'values=[{", ".join(self.value_columns)}] '
-                f'→ {self.variable_name}, {self.value_name}')
+        return (
+            f"Unpivot id=[{', '.join(self.id_columns)}] "
+            f"values=[{', '.join(self.value_columns)}] "
+            f"→ {self.variable_name}, {self.value_name}"
+        )
 
 
 class PivotNode(PlanNode):
-    __slots__ = ('child', 'index', 'on', 'values', 'agg_name', 'columns',
-                 '_cached_data', '_cached_columns')
+    """Converts rows into columns (pivot / spread).
 
-    def __init__(self, child: PlanNode, index: list[str], on: str,
-                 values: str, agg_name: AggFunc = 'first',
-                 columns: list[str] | None = None):
+    Groups rows by *index* columns and spreads the distinct values in
+    *on* into new columns, aggregating *values* with *agg_name*.
+    Pivot columns are auto-discovered from the data unless *columns*
+    is explicitly provided.
+
+    Args:
+        child: Input plan node.
+        index: Columns to keep as the row index.
+        on: Column whose distinct values become new column headers.
+        values: Column containing the values to fill the pivoted cells.
+        agg_name: Aggregation function applied when multiple values map to
+            the same cell.
+        columns: Explicit list of pivot columns.  Auto-discovered if ``None``.
+    """
+
+    __slots__ = (
+        "child",
+        "index",
+        "on",
+        "values",
+        "agg_name",
+        "columns",
+        "_cached_data",
+        "_cached_columns",
+    )
+
+    def __init__(
+        self,
+        child: PlanNode,
+        index: list[str],
+        on: str,
+        values: str,
+        agg_name: AggFunc = "first",
+        columns: list[str] | None = None,
+    ):
         self.child = child
         self.index = index
         self.on = on
@@ -886,16 +1124,35 @@ class PivotNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        cols_str = str(self.columns) if self.columns else 'auto'
-        return (f'Pivot index=[{", ".join(self.index)}] on={self.on} '
-                f'values={self.values} agg={self.agg_name} columns={cols_str}')
+        cols_str = str(self.columns) if self.columns else "auto"
+        return (
+            f"Pivot index=[{', '.join(self.index)}] on={self.on} "
+            f"values={self.values} agg={self.agg_name} columns={cols_str}"
+        )
 
 
 class ApplyNode(PlanNode):
-    __slots__ = ('child', 'func', '_columns', '_output_dtype')
+    """Applies a scalar function to one or more columns.
 
-    def __init__(self, child: PlanNode, func, columns: list[str] | None = None,
-                 output_dtype: type | None = None):
+    When *columns* is provided, only those columns are transformed;
+    otherwise *func* is applied to every value in every column.
+
+    Args:
+        child: Input plan node.
+        func: Callable applied element-wise to each value.
+        columns: Columns to transform.  If ``None``, all columns are transformed.
+        output_dtype: Optional output type to record in the schema.
+    """
+
+    __slots__ = ("child", "func", "_columns", "_output_dtype")
+
+    def __init__(
+        self,
+        child: PlanNode,
+        func,
+        columns: list[str] | None = None,
+        output_dtype: type | None = None,
+    ):
         self.child = child
         self.func = func
         self._columns = columns
@@ -916,8 +1173,9 @@ class ApplyNode(PlanNode):
             target = frozenset(col_map[c] for c in self._columns if c in col_map)
             fn = self.func
             for chunk in self.child.execute_batched():
-                yield [tuple(fn(v) if i in target else v for i, v in enumerate(row))
-                       for row in chunk]
+                yield [
+                    tuple(fn(v) if i in target else v for i, v in enumerate(row)) for row in chunk
+                ]
         else:
             fn = self.func
             for chunk in self.child.execute_batched():
@@ -928,12 +1186,24 @@ class ApplyNode(PlanNode):
 
     def _explain_self(self):
         if self._columns:
-            return f'Apply [{", ".join(self._columns)}]'
-        return 'Apply [all]'
+            return f"Apply [{', '.join(self._columns)}]"
+        return "Apply [all]"
 
 
 class WithColumnNode(PlanNode):
-    __slots__ = ('child', '_name', '_expr')
+    """Appends a new computed column to the output.
+
+    Evaluates *expr* for every row and adds the result as a new column
+    named *name*.  The output schema is the parent schema plus the new
+    column.
+
+    Args:
+        child: Input plan node.
+        name: Name for the new column.
+        expr: Expression to evaluate for each row.
+    """
+
+    __slots__ = ("child", "_name", "_expr")
 
     def __init__(self, child: PlanNode, name: str, expr: Expr):
         self.child = child
@@ -955,11 +1225,22 @@ class WithColumnNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        return f'WithColumn [{self._name} = {self._expr}]'
+        return f"WithColumn [{self._name} = {self._expr}]"
 
 
 class RenameNode(PlanNode):
-    __slots__ = ('child', 'mapping')
+    """Renames columns without modifying data.
+
+    A zero-cost metadata-only operation — the underlying rows are passed
+    through unchanged, only the schema is updated.
+
+    Args:
+        child: Input plan node.
+        mapping: Dictionary mapping old column names to new names.
+    """
+
+    __slots__ = ("child", "mapping")
+
     def __init__(self, child: PlanNode, mapping: dict[str, str]):
         self.child = child
         self.mapping = mapping
@@ -977,12 +1258,22 @@ class RenameNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        pairs = [f'{k}→{v}' for k, v in self.mapping.items()]
-        return f'Rename [{", ".join(pairs)}]'
+        pairs = [f"{k}→{v}" for k, v in self.mapping.items()]
+        return f"Rename [{', '.join(pairs)}]"
 
 
 class UnionNode(PlanNode):
-    __slots__ = ('_children',)
+    """Concatenates rows from multiple input nodes (SQL ``UNION ALL``).
+
+    The output schema is taken from the first child.  All children
+    must produce rows with compatible schemas.
+
+    Args:
+        children_nodes: List of input plan nodes to concatenate.
+    """
+
+    __slots__ = ("_children",)
+
     def __init__(self, children_nodes: list[PlanNode]):
         self._children = children_nodes
 
@@ -996,14 +1287,25 @@ class UnionNode(PlanNode):
         return self._children
 
     def _explain_self(self):
-        return f'Union [{len(self._children)} inputs]'
+        return f"Union [{len(self._children)} inputs]"
 
 
 class WindowNode(PlanNode):
-    __slots__ = ('child', 'window_expr', '_output_name')
+    """Evaluates a window function and appends the result as a new column.
 
-    def __init__(self, child: PlanNode, window_expr: WindowExpr,
-                 output_name: str):
+    Implements the sort-partition-scan pattern: materialises all rows,
+    partitions by key columns, sorts within each partition, then computes
+    the window expression (rank, cumulative, offset, or aggregate).
+
+    Args:
+        child: Input plan node.
+        window_expr: The window expression to evaluate.
+        output_name: Name for the new column containing window results.
+    """
+
+    __slots__ = ("child", "window_expr", "_output_name")
+
+    def __init__(self, child: PlanNode, window_expr: WindowExpr, output_name: str):
         self.child = child
         self.window_expr = window_expr
         self._output_name = output_name
@@ -1027,15 +1329,21 @@ class WindowNode(PlanNode):
         o_idx = [col_map[o] for o in wexpr.order_by]
 
         p_key = _make_key_fn(p_idx) if p_idx else None
-        (itemgetter(*o_idx) if len(o_idx) > 1
-                 else (lambda x, _i=o_idx[0]: x[1][_i]) if o_idx
-                 else None)
+        (
+            itemgetter(*o_idx)
+            if len(o_idx) > 1
+            else (lambda x, _i=o_idx[0]: x[1][_i])
+            if o_idx
+            else None
+        )
         if len(o_idx) > 1:
             _o_getter = itemgetter(*o_idx)
+
             def o_sort_key(x):
                 return _o_getter(x[1])
         elif o_idx:
             _oi = o_idx[0]
+
             def o_sort_key(x):
                 return x[1][_oi]
         else:
@@ -1067,14 +1375,14 @@ class WindowNode(PlanNode):
                 o_key_fn = _make_key_fn(o_idx) if o_idx else None
                 for pos, (orig_i, row) in enumerate(part):
                     cur = o_key_fn(row) if o_key_fn else pos
-                    if inner.kind == 'row_number':
+                    if inner.kind == "row_number":
                         window_values[orig_i] = pos + 1
-                    elif inner.kind == 'rank':
+                    elif inner.kind == "rank":
                         if cur != prev_val:
                             rank_val = pos + 1
                             prev_val = cur
                         window_values[orig_i] = rank_val
-                    elif inner.kind == 'dense_rank':
+                    elif inner.kind == "dense_rank":
                         if cur != prev_val:
                             dense_val += 1
                             prev_val = cur
@@ -1083,16 +1391,20 @@ class WindowNode(PlanNode):
             elif isinstance(inner, CumExpr):
                 val_fn = inner.expr.compile(col_map)
                 values = [val_fn(r) for _, r in part]
-                if inner.kind == 'cumsum':
+                if inner.kind == "cumsum":
+
                     def op(a, b):
                         return a + b
-                elif inner.kind == 'cummax':
+                elif inner.kind == "cummax":
+
                     def op(a, b):
                         return max(a, b)
-                elif inner.kind == 'cummin':
+                elif inner.kind == "cummin":
+
                     def op(a, b):
                         return min(a, b)
                 else:
+
                     def op(a, b):
                         return b
 
@@ -1134,7 +1446,7 @@ class WindowNode(PlanNode):
         return [self.child]
 
     def _explain_self(self):
-        return f'Window [{self.window_expr}] → {self._output_name}'
+        return f"Window [{self.window_expr}] → {self._output_name}"
 
 
 class Optimizer:
@@ -1149,6 +1461,14 @@ class Optimizer:
     """
 
     def optimize(self, plan: PlanNode) -> PlanNode:
+        """Apply all optimization passes to a plan tree.
+
+        Args:
+            plan: Root node of the query plan to optimize.
+
+        Returns:
+            A new, semantically equivalent plan tree with optimizations applied.
+        """
         plan = self._push_filters(plan)
         needed = set(plan.schema().column_names)
         plan = self._prune_columns(plan, needed)
@@ -1164,7 +1484,9 @@ class Optimizer:
             return JoinNode(
                 self._push_filters(node.left),
                 self._push_filters(node.right),
-                node.left_on, node.right_on, node.how,
+                node.left_on,
+                node.right_on,
+                node.how,
             )
         if isinstance(node, SortNode):
             return SortNode(self._push_filters(node.child), node.by, node.ascending)
@@ -1175,11 +1497,22 @@ class Optimizer:
         if isinstance(node, SortedAggNode):
             return SortedAggNode(self._push_filters(node.child), node.group_by, node.agg_exprs)
         if isinstance(node, PivotNode):
-            return PivotNode(self._push_filters(node.child), node.index, node.on,
-                             node.values, node.agg_name, node.columns)
+            return PivotNode(
+                self._push_filters(node.child),
+                node.index,
+                node.on,
+                node.values,
+                node.agg_name,
+                node.columns,
+            )
         if isinstance(node, UnpivotNode):
-            return UnpivotNode(self._push_filters(node.child), node.id_columns,
-                               node.value_columns, node.variable_name, node.value_name)
+            return UnpivotNode(
+                self._push_filters(node.child),
+                node.id_columns,
+                node.value_columns,
+                node.variable_name,
+                node.value_name,
+            )
         return node
 
     def _try_push_filter(self, predicate: Expr, child: PlanNode) -> PlanNode:
@@ -1203,26 +1536,37 @@ class Optimizer:
             if needed <= left_cols:
                 return JoinNode(
                     FilterNode(child.left, predicate),
-                    child.right, child.left_on, child.right_on, child.how,
+                    child.right,
+                    child.left_on,
+                    child.right_on,
+                    child.how,
                 )
             if needed <= right_cols:
                 return JoinNode(
                     child.left,
                     FilterNode(child.right, predicate),
-                    child.left_on, child.right_on, child.how,
+                    child.left_on,
+                    child.right_on,
+                    child.how,
                 )
 
         if isinstance(child, PivotNode):
             if needed <= set(child.index):
                 pushed = FilterNode(child.child, predicate)
-                return PivotNode(pushed, child.index, child.on,
-                                 child.values, child.agg_name, child.columns)
+                return PivotNode(
+                    pushed, child.index, child.on, child.values, child.agg_name, child.columns
+                )
 
         if isinstance(child, UnpivotNode):
             if needed <= set(child.id_columns):
                 pushed = FilterNode(child.child, predicate)
-                return UnpivotNode(pushed, child.id_columns, child.value_columns,
-                                   child.variable_name, child.value_name)
+                return UnpivotNode(
+                    pushed,
+                    child.id_columns,
+                    child.value_columns,
+                    child.variable_name,
+                    child.value_name,
+                )
 
         return FilterNode(child, predicate)
 
@@ -1254,14 +1598,16 @@ class Optimizer:
             left_needed = (needed & left_cols) | set(node.left_on)
             right_needed = (needed & right_cols) | set(node.right_on)
             for c in needed:
-                if c.startswith('right_'):
+                if c.startswith("right_"):
                     base = c[6:]
                     if base in right_cols:
                         right_needed.add(base)
             return JoinNode(
                 self._prune_columns(node.left, left_needed),
                 self._prune_columns(node.right, right_needed),
-                node.left_on, node.right_on, node.how,
+                node.left_on,
+                node.right_on,
+                node.how,
             )
 
         if isinstance(node, WithColumnNode):
@@ -1269,7 +1615,8 @@ class Optimizer:
             child_needed = (needed - {node._name}) | expr_needs
             return WithColumnNode(
                 self._prune_columns(node.child, child_needed),
-                node._name, node._expr,
+                node._name,
+                node._expr,
             )
 
         if isinstance(node, AggNode):
@@ -1278,29 +1625,37 @@ class Optimizer:
                 child_needed |= agg.required_columns()
             return AggNode(
                 self._prune_columns(node.child, child_needed),
-                node.group_by, node.agg_exprs,
+                node.group_by,
+                node.agg_exprs,
             )
 
         if isinstance(node, WindowNode):
             child_needed = needed | node.window_expr.required_columns()
             return WindowNode(
                 self._prune_columns(node.child, child_needed),
-                node.window_expr, node._output_name,
+                node.window_expr,
+                node._output_name,
             )
 
         if isinstance(node, PivotNode):
             child_needed = set(node.index) | {node.on, node.values}
             return PivotNode(
                 self._prune_columns(node.child, child_needed),
-                node.index, node.on, node.values, node.agg_name, node.columns,
+                node.index,
+                node.on,
+                node.values,
+                node.agg_name,
+                node.columns,
             )
 
         if isinstance(node, UnpivotNode):
             child_needed = set(node.id_columns) | set(node.value_columns)
             return UnpivotNode(
                 self._prune_columns(node.child, child_needed),
-                node.id_columns, node.value_columns,
-                node.variable_name, node.value_name,
+                node.id_columns,
+                node.value_columns,
+                node.variable_name,
+                node.value_name,
             )
 
         return node

@@ -1,4 +1,4 @@
-from .core import Floe, GroupByBuilder, TypedFloe
+from .core import LazyFrame, LazyGroupBy, TypedLazyFrame
 from .expr import (
     Agg,
     AggFunc,
@@ -31,7 +31,7 @@ from .schema import ColumnSchema, LazySchema
 from .stream import Stream, from_chunks, from_iter
 
 __all__ = [
-    'Floe', 'TypedFloe', 'GroupByBuilder',
+    'LazyFrame', 'TypedLazyFrame', 'LazyGroupBy',
     'col', 'lit', 'rank', 'dense_rank', 'row_number', 'when',
     'Expr', 'Col', 'Lit',
     'LazySchema', 'ColumnSchema',

@@ -2,9 +2,9 @@
 
 from pyfloe import (
     ColumnSchema,
-    Floe,
+    LazyFrame,
     LazySchema,
-    TypedFloe,
+    TypedLazyFrame,
     col,
     dense_rank,
     rank,
@@ -35,37 +35,37 @@ customers = (c for c in CUSTOMERS)
 
 def test_schema_without_materialization():
 
-    ff = Floe(CUSTOMERS)
-    s = ff.schema
-    assert not ff.is_materialized  # schema from ScanNode doesn't need materialization — data is already in ScanNode
+    lf = LazyFrame(CUSTOMERS)
+    s = lf.schema
+    assert not lf.is_materialized  # schema from ScanNode doesn't need materialization — data is already in ScanNode
     assert s.column_names == ["customer_id", "name", "segment"]
     assert s.dtypes["customer_id"] is int
     assert s.dtypes["name"] is str
     assert s.dtypes["segment"] is str
 
 def test_schema_propagates_through_select():
-    ff = Floe(ORDERS).select("order_id", "amount")
-    s = ff.schema
+    lf = LazyFrame(ORDERS).select("order_id", "amount")
+    s = lf.schema
     assert s.column_names == ["order_id", "amount"]
     assert s.dtypes["order_id"] is int
-    assert not ff.is_materialized
+    assert not lf.is_materialized
 
 def test_schema_propagates_through_filter():
-    ff = Floe(ORDERS).filter(col("amount") > 100)
-    s = ff.schema
+    lf = LazyFrame(ORDERS).filter(col("amount") > 100)
+    s = lf.schema
     assert s.column_names == ["order_id", "customer_id", "product", "amount", "region"]
-    assert not ff.is_materialized
+    assert not lf.is_materialized
 
 def test_schema_propagates_through_with_column():
-    ff = Floe(ORDERS).with_column("double_amt", col("amount") * 2)
-    s = ff.schema
+    lf = LazyFrame(ORDERS).with_column("double_amt", col("amount") * 2)
+    s = lf.schema
     assert "double_amt" in s.column_names
     assert s.dtypes["double_amt"] is float
-    assert not ff.is_materialized
+    assert not lf.is_materialized
 
 def test_schema_propagates_through_join():
-    o = Floe(ORDERS)
-    c = Floe(CUSTOMERS)
+    o = LazyFrame(ORDERS)
+    c = LazyFrame(CUSTOMERS)
     joined = o.join(c, on="customer_id")
     s = joined.schema
     assert "name" in s.column_names
@@ -74,32 +74,32 @@ def test_schema_propagates_through_join():
     assert not joined.is_materialized
 
 def test_schema_propagates_through_group_by_agg():
-    ff = Floe(ORDERS).group_by("region").agg(
+    lf = LazyFrame(ORDERS).group_by("region").agg(
         col("amount").sum().alias("total"),
         col("order_id").count().alias("n"),
     )
-    s = ff.schema
+    s = lf.schema
     assert s.column_names == ["region", "total", "n"]
     assert s.dtypes["total"] is float  # sum of float
     assert s.dtypes["n"] is int        # count
-    assert not ff.is_materialized
+    assert not lf.is_materialized
 
 def test_schema_propagates_through_rename():
-    ff = Floe(ORDERS).rename({"amount": "price", "region": "area"})
-    s = ff.schema
+    lf = LazyFrame(ORDERS).rename({"amount": "price", "region": "area"})
+    s = lf.schema
     assert "price" in s.column_names
     assert "area" in s.column_names
     assert "amount" not in s.column_names
-    assert not ff.is_materialized
+    assert not lf.is_materialized
 
 def test_schema_propagates_through_sort():
-    ff = Floe(ORDERS).sort("amount")
-    assert ff.schema.column_names == Floe(ORDERS).columns
-    assert not ff.is_materialized
+    lf = LazyFrame(ORDERS).sort("amount")
+    assert lf.schema.column_names == LazyFrame(ORDERS).columns
+    assert not lf.is_materialized
 
 def test_schema_through_chained_ops():
     pipeline = (
-        Floe(ORDERS)
+        LazyFrame(ORDERS)
         .select("order_id", "amount", "region")
         .filter(col("amount") > 100)
         .with_column("tax", col("amount") * 0.2)
@@ -114,43 +114,43 @@ def test_schema_through_chained_ops():
 # ═══════════════════════════════════════════════════════════
 
 def test_col_lit_filter():
-    result = Floe(ORDERS).filter(col("amount") > 100).to_pylist()
+    result = LazyFrame(ORDERS).filter(col("amount") > 100).to_pylist()
     assert len(result) == 4
     assert all(r["amount"] > 100 for r in result)
 
 def test_compound_filter_with_and():
-    result = Floe(ORDERS).filter(
+    result = LazyFrame(ORDERS).filter(
         (col("region") == "US") & (col("amount") > 100)
     ).to_pylist()
     assert len(result) == 2
     assert all(r["region"] == "US" and r["amount"] > 100 for r in result)
 
 def test_arithmetic_expressions():
-    result = Floe(ORDERS).with_column("double", col("amount") * 2).to_pylist()
+    result = LazyFrame(ORDERS).with_column("double", col("amount") * 2).to_pylist()
     for r in result:
         assert r["double"] == r["amount"] * 2
 
 def test_cast_expression():
-    result = Floe(ORDERS).with_column("amt_str", col("amount").cast(str)).to_pylist()
+    result = LazyFrame(ORDERS).with_column("amt_str", col("amount").cast(str)).to_pylist()
     assert result[0]["amt_str"] == "250.0"
 
 def test_is_null_is_not_null():
     data = [{"x": 1, "y": None}, {"x": 2, "y": "hello"}]
-    result = Floe(data).filter(col("y").is_not_null()).to_pylist()
+    result = LazyFrame(data).filter(col("y").is_not_null()).to_pylist()
     assert len(result) == 1
     assert result[0]["x"] == 2
 
 def test_is_in():
-    result = Floe(ORDERS).filter(col("region").is_in(["EU"])).to_pylist()
+    result = LazyFrame(ORDERS).filter(col("region").is_in(["EU"])).to_pylist()
     assert len(result) == 3
 
 def test_when_otherwise():
-    ff = Floe(ORDERS).with_column("size",
+    lf = LazyFrame(ORDERS).with_column("size",
         when(col("amount") > 200, "large")
         .when(col("amount") > 100, "medium")
         .otherwise("small")
     )
-    result = ff.to_pylist()
+    result = lf.to_pylist()
     for r in result:
         if r["amount"] > 200:
             assert r["size"] == "large"
@@ -160,11 +160,11 @@ def test_when_otherwise():
             assert r["size"] == "small"
 
 def test_negation():
-    result = Floe(ORDERS).with_column("neg", -col("amount")).to_pylist()
+    result = LazyFrame(ORDERS).with_column("neg", -col("amount")).to_pylist()
     assert result[0]["neg"] == -250.0
 
 def test_reverse_arithmetic_lit_col():
-    result = Floe(ORDERS).with_column("plus100", 100 + col("amount")).to_pylist()
+    result = LazyFrame(ORDERS).with_column("plus100", 100 + col("amount")).to_pylist()
     assert result[0]["plus100"] == 350.0
 
 def test_expression_repr():
@@ -177,36 +177,36 @@ def test_expression_repr():
 # ═══════════════════════════════════════════════════════════
 
 def test_str_upper_str_lower():
-    result = Floe(ORDERS).with_column("upper", col("product").str.upper()).to_pylist()
+    result = LazyFrame(ORDERS).with_column("upper", col("product").str.upper()).to_pylist()
     assert result[0]["upper"] == "WIDGET A"
 
 def test_str_contains():
-    result = Floe(ORDERS).filter(col("product").str.contains("Widget A")).to_pylist()
+    result = LazyFrame(ORDERS).filter(col("product").str.contains("Widget A")).to_pylist()
     assert len(result) == 2
 
 def test_str_startswith_str_endswith():
-    r1 = Floe(ORDERS).filter(col("product").str.startswith("Widget")).to_pylist()
+    r1 = LazyFrame(ORDERS).filter(col("product").str.startswith("Widget")).to_pylist()
     assert len(r1) == 6
-    r2 = Floe(ORDERS).filter(col("product").str.endswith("A")).to_pylist()
+    r2 = LazyFrame(ORDERS).filter(col("product").str.endswith("A")).to_pylist()
     assert len(r2) == 2
 
 def test_str_replace():
-    result = Floe(ORDERS).with_column("renamed", col("product").str.replace("Widget", "Gadget")).to_pylist()
+    result = LazyFrame(ORDERS).with_column("renamed", col("product").str.replace("Widget", "Gadget")).to_pylist()
     assert result[0]["renamed"] == "Gadget A"
 
 def test_str_len():
-    result = Floe(ORDERS).with_column("name_len", col("product").str.len()).to_pylist()
+    result = LazyFrame(ORDERS).with_column("name_len", col("product").str.len()).to_pylist()
     assert result[0]["name_len"] == 8  # "Widget A"
 
 def test_str_slice():
-    result = Floe(ORDERS).with_column("first3", col("product").str.slice(0, 3)).to_pylist()
+    result = LazyFrame(ORDERS).with_column("first3", col("product").str.slice(0, 3)).to_pylist()
     assert result[0]["first3"] == "Wid"
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
 
 def test_group_by_agg_with_sum_count_mean():
-    result = Floe(ORDERS).group_by("region").agg(
+    result = LazyFrame(ORDERS).group_by("region").agg(
         col("amount").sum().alias("total"),
         col("order_id").count().alias("n"),
         col("amount").mean().alias("avg"),
@@ -218,7 +218,7 @@ def test_group_by_agg_with_sum_count_mean():
     assert us["total"] == 905.5
 
 def test_group_by_agg_with_min_max_n_unique():
-    result = Floe(ORDERS).group_by("region").agg(
+    result = LazyFrame(ORDERS).group_by("region").agg(
         col("amount").min().alias("min_amt"),
         col("amount").max().alias("max_amt"),
         col("product").n_unique().alias("uniq_products"),
@@ -228,7 +228,7 @@ def test_group_by_agg_with_min_max_n_unique():
     assert eu["max_amt"] == 250.0
 
 def test_legacy_group_by_api():
-    result = Floe(ORDERS).group_by("region", agg_func=sum, on_cols="amount").to_pylist()
+    result = LazyFrame(ORDERS).group_by("region", agg_func=sum, on_cols="amount").to_pylist()
     assert len(result) == 2
     totals = {r["region"]: r["amount"] for r in result}
     assert totals["EU"] == 475.0
@@ -238,10 +238,10 @@ def test_legacy_group_by_api():
 # ═══════════════════════════════════════════════════════════
 
 def test_row_number_over_partition():
-    ff = Floe(ORDERS).with_column("rn",
+    lf = LazyFrame(ORDERS).with_column("rn",
         row_number().over(partition_by="region", order_by="amount")
     )
-    result = ff.to_pylist()
+    result = lf.to_pylist()
     eu_rows = sorted([r for r in result if r["region"] == "EU"], key=lambda r: r["rn"])
     assert [r["rn"] for r in eu_rows] == [1, 2, 3]
     assert eu_rows[0]["amount"] == 45.0  # smallest first
@@ -253,7 +253,7 @@ def test_rank_with_ties():
         {"name": "c", "score": 20, "group": "x"},
         {"name": "d", "score": 30, "group": "x"},
     ]
-    result = Floe(data).with_column("r", rank().over(partition_by="group", order_by="score")).to_pylist()
+    result = LazyFrame(data).with_column("r", rank().over(partition_by="group", order_by="score")).to_pylist()
     ranks = {r["name"]: r["r"] for r in result}
     assert ranks["a"] == 1
     assert ranks["b"] == 2
@@ -267,12 +267,12 @@ def test_dense_rank():
         {"name": "c", "score": 20, "g": "x"},
         {"name": "d", "score": 30, "g": "x"},
     ]
-    result = Floe(data).with_column("dr", dense_rank().over(partition_by="g", order_by="score")).to_pylist()
+    result = LazyFrame(data).with_column("dr", dense_rank().over(partition_by="g", order_by="score")).to_pylist()
     ranks = {r["name"]: r["dr"] for r in result}
     assert ranks["d"] == 3  # no skip
 
 def test_window_agg_sum_over_partition():
-    result = Floe(ORDERS).with_column("region_total",
+    result = LazyFrame(ORDERS).with_column("region_total",
         col("amount").sum().over(partition_by="region")
     ).to_pylist()
     for r in result:
@@ -283,7 +283,7 @@ def test_window_agg_sum_over_partition():
 
 def test_cumsum():
     data = [{"x": 1, "v": 10}, {"x": 2, "v": 20}, {"x": 3, "v": 30}]
-    result = Floe(data).with_column("running",
+    result = LazyFrame(data).with_column("running",
         col("v").cumsum().over(order_by="x")
     ).to_pylist()
     vals = sorted(result, key=lambda r: r["x"])
@@ -291,13 +291,13 @@ def test_cumsum():
 
 def test_lag_lead():
     data = [{"x": 1, "v": 10}, {"x": 2, "v": 20}, {"x": 3, "v": 30}]
-    result = Floe(data).with_column("prev",
+    result = LazyFrame(data).with_column("prev",
         col("v").lag(1, default=0).over(order_by="x")
     ).to_pylist()
     vals = sorted(result, key=lambda r: r["x"])
     assert [r["prev"] for r in vals] == [0, 10, 20]
 
-    result2 = Floe(data).with_column("next_v",
+    result2 = LazyFrame(data).with_column("next_v",
         col("v").lead(1, default=-1).over(order_by="x")
     ).to_pylist()
     vals2 = sorted(result2, key=lambda r: r["x"])
@@ -308,7 +308,7 @@ def test_lag_lead():
 
 def test_explain_shows_plan_tree():
     plan = (
-        Floe(ORDERS)
+        LazyFrame(ORDERS)
         .filter(col("amount") > 100)
         .select("order_id", "amount")
         .sort("amount")
@@ -320,16 +320,16 @@ def test_explain_shows_plan_tree():
     assert "Scan" in text
 
 def test_explain_with_join():
-    o = Floe(ORDERS)
-    c = Floe(CUSTOMERS)
+    o = LazyFrame(ORDERS)
+    c = LazyFrame(CUSTOMERS)
     joined = o.join(c, on="customer_id").filter(col("segment") == "Enterprise")
     text = joined.explain()
     assert "Join" in text
     assert "Filter" in text
 
 def test_optimized_explain_pushes_filter_down():
-    o = Floe(ORDERS)
-    c = Floe(CUSTOMERS)
+    o = LazyFrame(ORDERS)
+    c = LazyFrame(CUSTOMERS)
     pipeline = (
         o.join(c, on="customer_id")
         .filter(col("region") == "EU")  # only touches left side
@@ -349,7 +349,7 @@ def test_optimized_explain_pushes_filter_down():
 
 def test_filter_pushdown_past_project():
     pipeline = (
-        Floe(ORDERS)
+        LazyFrame(ORDERS)
         .select("order_id", "amount", "region")
         .filter(col("amount") > 100)
     )
@@ -361,8 +361,8 @@ def test_filter_pushdown_past_project():
     assert "Filter" in lines[1]
 
 def test_filter_pushdown_into_join_left_side():
-    o = Floe(ORDERS)
-    c = Floe(CUSTOMERS)
+    o = LazyFrame(ORDERS)
+    c = LazyFrame(CUSTOMERS)
     pipeline = o.join(c, on="customer_id").filter(col("region") == "EU")
     opt = pipeline.optimize()
     text = opt.explain()
@@ -371,8 +371,8 @@ def test_filter_pushdown_into_join_left_side():
     assert "Join" in lines[0]
 
 def test_filter_pushdown_into_join_right_side():
-    o = Floe(ORDERS)
-    c = Floe(CUSTOMERS)
+    o = LazyFrame(ORDERS)
+    c = LazyFrame(CUSTOMERS)
     pipeline = o.join(c, on="customer_id").filter(col("segment") == "Enterprise")
     opt = pipeline.optimize()
     text = opt.explain()
@@ -380,8 +380,8 @@ def test_filter_pushdown_into_join_right_side():
     assert "Join" in lines[0]  # filter pushed inside
 
 def test_optimized_execution_produces_correct_results():
-    o = Floe(ORDERS)
-    c = Floe(CUSTOMERS)
+    o = LazyFrame(ORDERS)
+    c = LazyFrame(CUSTOMERS)
     pipeline = (
         o.join(c, on="customer_id")
         .filter(col("region") == "EU")
@@ -403,8 +403,8 @@ def test_typed_returns_typedfloe():
         amount: float
         region: str
 
-    orders = Floe(ORDERS).typed(Order)
-    assert isinstance(orders, TypedFloe)
+    orders = LazyFrame(ORDERS).typed(Order)
+    assert isinstance(orders, TypedLazyFrame)
     assert orders.row_type is Order
 
 def test_typedfloe_preserves_type_through_filter():
@@ -414,9 +414,9 @@ def test_typedfloe_preserves_type_through_filter():
         amount: float
         region: str
 
-    orders = Floe(ORDERS).typed(Order)
+    orders = LazyFrame(ORDERS).typed(Order)
     filtered = orders.filter(col("amount") > 100)
-    assert isinstance(filtered, TypedFloe)
+    assert isinstance(filtered, TypedLazyFrame)
     assert filtered.row_type is Order
 
 def test_validate_catches_schema_mismatch():
@@ -426,7 +426,7 @@ def test_validate_catches_schema_mismatch():
         amount: str  # wrong type
 
     try:
-        Floe(ORDERS).validate(WrongSchema)
+        LazyFrame(ORDERS).validate(WrongSchema)
         assert False, "Should have raised TypeError"
     except TypeError as e:
         assert "missing column" in str(e)
@@ -437,96 +437,96 @@ def test_validate_passes_for_correct_schema():
         order_id: int
         amount: float
 
-    Floe(ORDERS).validate(Order)  # should not raise
+    LazyFrame(ORDERS).validate(Order)  # should not raise
 
 def test_typedfloe_repr_shows_type_name():
     from typing import TypedDict
     class Order(TypedDict):
         order_id: int
 
-    orders = Floe(ORDERS).typed(Order)
-    assert "TypedFloe[Order]" in repr(orders)
+    orders = LazyFrame(ORDERS).typed(Order)
+    assert "TypedLazyFrame[Order]" in repr(orders)
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
 
 def test_select_columns():
-    result = Floe(ORDERS).select("order_id", "amount").to_pylist()
+    result = LazyFrame(ORDERS).select("order_id", "amount").to_pylist()
     assert set(result[0].keys()) == {"order_id", "amount"}
     assert len(result) == 6
 
 def test_drop_columns():
-    result = Floe(ORDERS).drop("customer_id", "product").columns
+    result = LazyFrame(ORDERS).drop("customer_id", "product").columns
     assert "customer_id" not in result
     assert "product" not in result
 
 def test_sort_ascending_and_descending():
-    result = Floe(ORDERS).sort("amount", ascending=False).to_pylist()
+    result = LazyFrame(ORDERS).sort("amount", ascending=False).to_pylist()
     amounts = [r["amount"] for r in result]
     assert amounts == sorted(amounts, reverse=True)
 
 def test_join_inner():
-    o = Floe(ORDERS)
-    c = Floe(CUSTOMERS)
+    o = LazyFrame(ORDERS)
+    c = LazyFrame(CUSTOMERS)
     result = o.join(c, on="customer_id", how="inner").to_pylist()
     assert len(result) == 6
     assert all("name" in r for r in result)
 
 def test_join_left_with_nulls():
-    left = Floe([{"id": 1, "v": "a"}, {"id": 2, "v": "b"}])
-    right = Floe([{"id": 1, "info": "found"}])
+    left = LazyFrame([{"id": 1, "v": "a"}, {"id": 2, "v": "b"}])
+    right = LazyFrame([{"id": 1, "info": "found"}])
     result = left.join(right, on="id", how="left").to_pylist()
     assert len(result) == 2
     matched = [r for r in result if r.get("info") is not None]
     assert len(matched) == 1
 
 def test_union():
-    a = Floe(ORDERS[:3])
-    b = Floe(ORDERS[3:])
+    a = LazyFrame(ORDERS[:3])
+    b = LazyFrame(ORDERS[3:])
     result = a.union(b).to_pylist()
     assert len(result) == 6
 
 def test_explode():
     data = [{"id": 1, "tags": ["a", "b"]}, {"id": 2, "tags": ["c"]}, {"id": 3, "tags": None}]
-    result = Floe(data).explode("tags").to_pylist()
+    result = LazyFrame(data).explode("tags").to_pylist()
     assert len(result) == 4
 
 def test_head():
-    result = Floe(ORDERS).head(3).to_pylist()
+    result = LazyFrame(ORDERS).head(3).to_pylist()
     assert len(result) == 3
 
 def test_getitem_string_select():
-    ff = Floe(ORDERS)["amount"]
-    assert ff.columns == ["amount"]
+    lf = LazyFrame(ORDERS)["amount"]
+    assert lf.columns == ["amount"]
 
 def test_getitem_int_row_dict():
-    row = Floe(ORDERS)[0]
+    row = LazyFrame(ORDERS)[0]
     assert row["order_id"] == 1
 
 def test_getitem_slice_floe():
-    ff = Floe(ORDERS)[1:3]
-    assert len(ff) == 2
+    lf = LazyFrame(ORDERS)[1:3]
+    assert len(lf) == 2
 
 def test_to_pydict():
-    d = Floe(ORDERS).select("order_id").to_pydict()
+    d = LazyFrame(ORDERS).select("order_id").to_pydict()
     assert d["order_id"] == [1, 2, 3, 4, 5, 6]
 
 def test_apply_to_specific_columns():
-    result = Floe(ORDERS).apply(str, columns=["amount"]).to_pylist()
+    result = LazyFrame(ORDERS).apply(str, columns=["amount"]).to_pylist()
     assert result[0]["amount"] == "250.0"
     assert isinstance(result[0]["order_id"], int)  # untouched
 
 def test_apply_to_all_columns():
-    result = Floe(ORDERS).apply(str).to_pylist()
+    result = LazyFrame(ORDERS).apply(str).to_pylist()
     assert result[0]["order_id"] == "1"
 
 def test_rename_columns():
-    result = Floe(ORDERS).rename({"amount": "price"}).columns
+    result = LazyFrame(ORDERS).rename({"amount": "price"}).columns
     assert "price" in result
     assert "amount" not in result
 
 def test_with_columns_multiple():
-    result = Floe(ORDERS).with_columns(
+    result = LazyFrame(ORDERS).with_columns(
         double=col("amount") * 2,
         upper_region=col("region").str.upper(),
     ).to_pylist()
@@ -534,15 +534,15 @@ def test_with_columns_multiple():
     assert result[0]["upper_region"] == "EU"
 
 def test_legacy_filter_with_lambda():
-    result = Floe(ORDERS).filter("amount", _filter=lambda a: a > 100).to_pylist()
+    result = LazyFrame(ORDERS).filter("amount", _filter=lambda a: a > 100).to_pylist()
     assert len(result) == 4
 
 def test_legacy_filter_with_value():
-    result = Floe(ORDERS).filter("region", _filter="EU").to_pylist()
+    result = LazyFrame(ORDERS).filter("region", _filter="EU").to_pylist()
     assert len(result) == 3
 
 def test_legacy_filter_multi_column_lambda():
-    result = Floe(ORDERS).filter(["region", "product"],
+    result = LazyFrame(ORDERS).filter(["region", "product"],
         _filter=lambda r, p: r == "US" and p == "Widget A").to_pylist()
     assert len(result) == 1
 
@@ -551,16 +551,16 @@ def test_construction_from_objects_with_dict():
         def __init__(self, x, y):
             self.x = x
             self.y = y
-    ff = Floe([Row(1, "a"), Row(2, "b")])
-    assert ff.columns == ["x", "y"]
-    assert len(ff) == 2
+    lf = LazyFrame([Row(1, "a"), Row(2, "b")])
+    assert lf.columns == ["x", "y"]
+    assert len(lf) == 2
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
 
 def test_chained_ops_stay_lazy():
     pipeline = (
-        Floe(ORDERS)
+        LazyFrame(ORDERS)
         .select("order_id", "amount", "region")
         .filter(col("amount") > 100)
         .with_column("tax", col("amount") * 0.2)
@@ -569,24 +569,24 @@ def test_chained_ops_stay_lazy():
     assert not pipeline.is_materialized
 
 def test_repr_does_not_materialize():
-    pipeline = Floe(ORDERS).filter(col("amount") > 100)
+    pipeline = LazyFrame(ORDERS).filter(col("amount") > 100)
     r = repr(pipeline)
     assert "lazy" in r
     assert not pipeline.is_materialized
 
 def test_schema_does_not_materialize_operations():
-    pipeline = Floe(ORDERS).filter(col("amount") > 100).select("order_id", "amount")
+    pipeline = LazyFrame(ORDERS).filter(col("amount") > 100).select("order_id", "amount")
     _ = pipeline.schema  # should not materialize the filter
     assert not pipeline.is_materialized
 
 def test_collect_materializes():
-    pipeline = Floe(ORDERS).filter(col("amount") > 100)
+    pipeline = LazyFrame(ORDERS).filter(col("amount") > 100)
     pipeline.collect()
     assert pipeline.is_materialized
     assert "materialized" in repr(pipeline)
 
 def test_repeated_collect_is_idempotent():
-    pipeline = Floe(ORDERS).filter(col("amount") > 100)
+    pipeline = LazyFrame(ORDERS).filter(col("amount") > 100)
     pipeline.collect()
     n1 = len(pipeline.raw_data)
     pipeline.collect()

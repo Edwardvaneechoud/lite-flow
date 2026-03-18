@@ -8,7 +8,7 @@ Overview of the pyfloe public API, organized by topic.
 
 | Function | Description |
 |----------|-------------|
-| `Floe(data)` | From list of dicts or objects |
+| `LazyFrame(data)` | From list of dicts or objects |
 | `read_csv(path, ...)` | Lazy CSV reader (auto-detects datetime) |
 | `read_tsv(path, ...)` | Lazy TSV reader |
 | `read_jsonl(path, ...)` | Lazy JSON Lines reader |
@@ -20,7 +20,7 @@ Overview of the pyfloe public API, organized by topic.
 | `Stream.from_iter(source, ...)` | True streaming pipeline |
 | `Stream.from_csv(path, ...)` | Stream from CSV |
 
-### Floe methods
+### LazyFrame methods
 
 | Method | Lazy? | Description |
 |--------|-------|-------------|
@@ -44,7 +44,7 @@ Overview of the pyfloe public API, organized by topic.
 | `.to_jsonl(path)` | streaming | Write JSONL |
 | `.explain()` | ✓ | Print plan |
 | `.schema` | ✓ | Schema (no data) |
-| `.typed(T)` | ✓ | → TypedFloe[T] |
+| `.typed(T)` | ✓ | → TypedLazyFrame[T] |
 | `.validate(T)` | ✓ | Check schema |
 
 ### Accessor methods

@@ -38,7 +38,7 @@ Functions and classes for streaming data from iterators, generators, and paginat
 
 ## Stream
 
-The `Stream` class provides a true single-pass streaming pipeline. Unlike Floe, it compiles transforms into a flat loop for maximum throughput with no plan-tree overhead.
+The `Stream` class provides a true single-pass streaming pipeline. Unlike LazyFrame, it compiles transforms into a flat loop for maximum throughput with no plan-tree overhead.
 
 ::: pyfloe.Stream
     options:

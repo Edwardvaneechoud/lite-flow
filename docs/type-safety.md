@@ -15,11 +15,11 @@ class Order(TypedDict):
 orders.validate(Order)           # raises TypeError with mismatches
 ```
 
-## TypedFloe
+## TypedLazyFrame
 
-Wrap a Floe to get typed results that your IDE understands:
+Wrap a LazyFrame to get typed results that your IDE understands:
 
 ```python
-typed = orders.typed(Order)      # → TypedFloe[Order]
+typed = orders.typed(Order)      # → TypedLazyFrame[Order]
 typed.filter(...).to_pylist()    # IDE knows this returns List[Order]
 ```

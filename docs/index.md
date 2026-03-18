@@ -11,7 +11,7 @@ pip install pyfloe
 ## Quick example
 
 ```python
-from pyfloe import Floe, read_csv, col, when, row_number
+from pyfloe import LazyFrame, read_csv, col, when, row_number
 
 result = (
     read_csv("orders.csv")                            # lazy — file not read yet
@@ -60,7 +60,7 @@ pipeline.explain()        # Print the plan tree
 | `len(ff)` | Counts all rows |
 | `ff[0]` | Indexes into data |
 
-**Safe in debuggers**: `repr()` on an unmaterialized Floe shows `Floe [? rows × 5 cols] (lazy)` without triggering evaluation.
+**Safe in debuggers**: `repr()` on an unmaterialized LazyFrame shows `LazyFrame [? rows × 5 cols] (lazy)` without triggering evaluation.
 
 ### Schemas propagate without data
 

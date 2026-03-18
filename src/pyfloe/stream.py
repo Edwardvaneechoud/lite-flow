@@ -37,9 +37,9 @@ def from_iter(
     columns: list[str] | None = None,
     dtypes: dict[str, type] | None = None,
     schema: LazySchema | None = None,
-    source_label: str = 'Iterator',
+    source_label: str = "Iterator",
 ):
-    """Create a lazy Floe from any iterator or generator.
+    """Create a LazyFrame from any iterator or generator.
 
     If given a generator (single-pass), the data can only be evaluated once.
     If given a callable factory or an iterable (list, etc.), data can be
@@ -54,7 +54,7 @@ def from_iter(
         source_label: Label shown in ``explain()`` output.
 
     Returns:
-        A lazy Floe.
+        A LazyFrame.
 
     Examples:
         From a generator:
@@ -71,21 +71,21 @@ def from_iter(
         >>> def make_data():
         ...     for i in range(3):
         ...         yield {"x": i}
-        >>> ff = from_iter(make_data)  # pass the function, not the generator
-        >>> ff.to_pylist() == ff.to_pylist()  # can be evaluated multiple times
+        >>> lf = from_iter(make_data)  # pass the function, not the generator
+        >>> lf.to_pylist() == lf.to_pylist()  # can be evaluated multiple times
         True
     """
-    from .core import Floe
+    from .core import LazyFrame
 
     is_factory = callable(source) and not isinstance(source, (list, tuple, dict))
     if not is_factory:
-        if hasattr(source, '__next__'):
+        if hasattr(source, "__next__"):
             peeked, chained_factory = _peek_and_wrap(source, n=10)
             if not peeked:
                 cols = columns or []
                 lazy_schema = schema or LazySchema()
                 node = IteratorSourceNode(cols, lazy_schema, lambda: iter([]), source_label)
-                return Floe._from_plan(node)
+                return LazyFrame._from_plan(node)
 
             cols, lazy_schema, item_type = _infer_from_sample(peeked, columns, dtypes, schema)
 
@@ -98,15 +98,17 @@ def from_iter(
                 _exhausted[0] = True
                 return _convert_iter(_chained(), cols, item_type)
 
-            node = IteratorSourceNode(cols, lazy_schema, oneshot_factory,
-                                       f'{source_label}(one-shot)')
-            return Floe._from_plan(node)
+            node = IteratorSourceNode(
+                cols, lazy_schema, oneshot_factory, f"{source_label}(one-shot)"
+            )
+            return LazyFrame._from_plan(node)
 
         else:
             _source = source
 
             def factory():
                 return iter(_source)
+
             is_factory = True
             source = factory
 
@@ -118,7 +120,7 @@ def from_iter(
             cols = columns or []
             lazy_schema = schema or LazySchema()
             node = IteratorSourceNode(cols, lazy_schema, lambda: iter([]), source_label)
-            return Floe._from_plan(node)
+            return LazyFrame._from_plan(node)
 
         cols, lazy_schema, item_type = _infer_from_sample(peeked, columns, dtypes, schema)
 
@@ -127,16 +129,15 @@ def from_iter(
         def replay_factory():
             return _convert_iter(_src(), cols, item_type)
 
-        node = IteratorSourceNode(cols, lazy_schema, replay_factory,
-                                   f'{source_label}(replayable)')
-        return Floe._from_plan(node)
+        node = IteratorSourceNode(cols, lazy_schema, replay_factory, f"{source_label}(replayable)")
+        return LazyFrame._from_plan(node)
 
 
 def _infer_from_sample(peeked, columns, dtypes, schema):
     first = peeked[0]
 
     if isinstance(first, dict):
-        item_type = 'dict'
+        item_type = "dict"
         if columns is None:
             all_keys = []
             seen = set()
@@ -148,51 +149,47 @@ def _infer_from_sample(peeked, columns, dtypes, schema):
             columns = all_keys
         if schema is None:
             if dtypes:
-                schema = LazySchema({
-                    c: ColumnSchema(c, dtypes.get(c, str)) for c in columns
-                })
+                schema = LazySchema({c: ColumnSchema(c, dtypes.get(c, str)) for c in columns})
             else:
                 schema = LazySchema.from_dicts(peeked)
 
     elif isinstance(first, (tuple, list)):
-        item_type = 'tuple'
+        item_type = "tuple"
         if columns is None:
-            columns = [f'col_{i}' for i in range(len(first))]
+            columns = [f"col_{i}" for i in range(len(first))]
         if schema is None:
             if dtypes:
-                schema = LazySchema({
-                    c: ColumnSchema(c, dtypes.get(c, str)) for c in columns
-                })
+                schema = LazySchema({c: ColumnSchema(c, dtypes.get(c, str)) for c in columns})
             else:
                 schema = LazySchema.from_data(columns, [tuple(r) for r in peeked])
 
-    elif hasattr(first, '__dict__'):
-        item_type = 'object'
+    elif hasattr(first, "__dict__"):
+        item_type = "object"
         if columns is None:
             columns = list(first.__dict__.keys())
         if schema is None:
             dicts = [o.__dict__ for o in peeked]
             if dtypes:
-                schema = LazySchema({
-                    c: ColumnSchema(c, dtypes.get(c, str)) for c in columns
-                })
+                schema = LazySchema({c: ColumnSchema(c, dtypes.get(c, str)) for c in columns})
             else:
                 schema = LazySchema.from_dicts(dicts)
     else:
-        raise ValueError(f'Cannot infer schema from items of type {type(first)}. '
-                         f'Items must be dicts, tuples, or objects with __dict__.')
+        raise ValueError(
+            f"Cannot infer schema from items of type {type(first)}. "
+            f"Items must be dicts, tuples, or objects with __dict__."
+        )
 
     return columns, schema, item_type
 
 
 def _convert_iter(it, columns, item_type):
-    if item_type == 'dict':
+    if item_type == "dict":
         for obj in it:
             yield tuple(obj.get(c) for c in columns)
-    elif item_type == 'tuple':
+    elif item_type == "tuple":
         for obj in it:
             yield tuple(obj)
-    elif item_type == 'object':
+    elif item_type == "object":
         for obj in it:
             d = obj.__dict__
             yield tuple(d.get(c) for c in columns)
@@ -204,11 +201,11 @@ def from_chunks(
     columns: list[str] | None = None,
     dtypes: dict[str, type] | None = None,
     schema: LazySchema | None = None,
-    source_label: str = 'Chunked',
+    source_label: str = "Chunked",
 ):
-    """Create a lazy Floe from batched/paginated data.
+    """Create a LazyFrame from batched/paginated data.
 
-    Each chunk is a list of dicts, list of tuples, or a Floe.
+    Each chunk is a list of dicts, list of tuples, or a LazyFrame.
     Useful for paginated APIs or batch-producing sources.
 
     Args:
@@ -219,7 +216,7 @@ def from_chunks(
         source_label: Label shown in ``explain()`` output.
 
     Returns:
-        A lazy Floe.
+        A LazyFrame.
 
     Examples:
         From a replayable chunk factory:
@@ -228,8 +225,8 @@ def from_chunks(
         >>> def make_chunks():
         ...     yield [{"n": 1}, {"n": 2}]
         ...     yield [{"n": 3}]
-        >>> ff = from_chunks(make_chunks)
-        >>> ff.to_pylist()
+        >>> lf = from_chunks(make_chunks)
+        >>> lf.to_pylist()
         [{'n': 1}, {'n': 2}, {'n': 3}]
 
         From an iterator of chunks:
@@ -238,20 +235,20 @@ def from_chunks(
         >>> from_chunks(iter(chunks)).to_pylist()
         [{'id': 1, 'v': 'a'}, {'id': 2, 'v': 'b'}]
     """
-    from .core import Floe
+    from .core import LazyFrame
 
     def flatten_dicts(chunk_iter, cols):
         def _chunk_to_rows(chunk):
             if isinstance(chunk, list) and chunk and isinstance(chunk[0], dict):
                 return (tuple(row.get(c) for c in cols) for row in chunk)
-            elif isinstance(chunk, Floe):
+            elif isinstance(chunk, LazyFrame):
                 return chunk._plan.execute()
             elif isinstance(chunk, list) and chunk and isinstance(chunk[0], (tuple, list)):
                 return (tuple(row) for row in chunk)
             elif isinstance(chunk, list):
                 return iter(())
             else:
-                raise ValueError(f'Unexpected chunk type: {type(chunk)}')
+                raise ValueError(f"Unexpected chunk type: {type(chunk)}")
 
         return chain.from_iterable(_chunk_to_rows(c) for c in chunk_iter)
 
@@ -260,7 +257,7 @@ def from_chunks(
     if is_factory:
         sample_chunks = chunks()
     else:
-        if hasattr(chunks, '__next__'):
+        if hasattr(chunks, "__next__"):
             peeked_chunks, chained = _peek_and_wrap(chunks, n=1)
         else:
             peeked_chunks = list(chunks)[:1]
@@ -275,10 +272,10 @@ def from_chunks(
         cols = columns or []
         lazy_schema = schema or LazySchema()
         node = IteratorSourceNode(cols, lazy_schema, lambda: iter([]), source_label)
-        return Floe._from_plan(node)
+        return LazyFrame._from_plan(node)
 
     first_chunk = peeked_chunks[0]
-    if isinstance(first_chunk, Floe):
+    if isinstance(first_chunk, LazyFrame):
         cols = columns or first_chunk.columns
         lazy_schema = schema or first_chunk.schema
     elif isinstance(first_chunk[0], dict):
@@ -301,7 +298,7 @@ def from_chunks(
         else:
             lazy_schema = LazySchema.from_dicts(sample)
     elif isinstance(first_chunk[0], (tuple, list)):
-        cols = columns or [f'col_{i}' for i in range(len(first_chunk[0]))]
+        cols = columns or [f"col_{i}" for i in range(len(first_chunk[0]))]
         if schema:
             lazy_schema = schema
         elif dtypes:
@@ -328,13 +325,13 @@ def from_chunks(
             return flatten_dicts(_chained(), cols)
 
     node = IteratorSourceNode(cols, lazy_schema, factory, source_label)
-    return Floe._from_plan(node)
+    return LazyFrame._from_plan(node)
 
 
 class Stream:
     """A true single-pass streaming pipeline.
 
-    Unlike Floe, Stream compiles transforms into a flat loop for
+    Unlike LazyFrame, Stream compiles transforms into a flat loop for
     maximum throughput. Supports filter, with_column, select, and apply.
     Results are consumed via ``.to_csv()``, ``.to_jsonl()``,
     ``.to_pylist()``, or ``.collect()``.
@@ -355,9 +352,14 @@ class Stream:
         4
     """
 
-    def __init__(self, source_factory, columns: list[str],
-                 schema: LazySchema, transforms: list | None = None,
-                 source_columns: list[str] | None = None):
+    def __init__(
+        self,
+        source_factory,
+        columns: list[str],
+        schema: LazySchema,
+        transforms: list | None = None,
+        source_columns: list[str] | None = None,
+    ):
         self._source_factory = source_factory
         self._columns = columns
         self._source_columns = source_columns or columns
@@ -388,7 +390,7 @@ class Stream:
 
         if is_factory:
             peeked, _ = _peek_and_wrap(source(), n=10)
-        elif hasattr(source, '__next__'):
+        elif hasattr(source, "__next__"):
             peeked, chained = _peek_and_wrap(source, n=10)
             source = chained
         else:
@@ -404,7 +406,7 @@ class Stream:
 
             def factory():
                 return _convert_iter(_src(), cols, item_type)
-        elif hasattr(source, '__call__'):
+        elif hasattr(source, "__call__"):
             _src = source
 
             def factory():
@@ -417,7 +419,11 @@ class Stream:
                 if _exhausted[0]:
                     return iter([])
                 _exhausted[0] = True
-                return _convert_iter(iter(_source) if not hasattr(_source, '__next__') else _source(), cols, item_type)
+                return _convert_iter(
+                    iter(_source) if not hasattr(_source, "__next__") else _source(),
+                    cols,
+                    item_type,
+                )
 
         return cls(factory, cols, lazy_schema)
 
@@ -437,6 +443,7 @@ class Stream:
             [{'order_id': 1, 'amount': 250.0, ...}, ...]
         """
         from .io import _read_delimited
+
         node = _read_delimited(path, **kwargs)
         return cls(node._row_factory, node._columns, node._schema)
 
@@ -452,9 +459,13 @@ class Stream:
         Examples:
             >>> stream.filter(col("amount") > 100)  # doctest: +SKIP
         """
-        return Stream(self._source_factory, self._columns, self._schema,
-                      self._transforms + [('filter', predicate)],
-                      self._source_columns)
+        return Stream(
+            self._source_factory,
+            self._columns,
+            self._schema,
+            self._transforms + [("filter", predicate)],
+            self._source_columns,
+        )
 
     def with_column(self, name: str, expr: Expr) -> Stream:
         """Add a computed column step to the pipeline.
@@ -471,9 +482,13 @@ class Stream:
         """
         new_schema = self._schema.with_column(name, expr.output_dtype(self._schema))
         new_cols = self._columns + [name]
-        return Stream(self._source_factory, new_cols, new_schema,
-                      self._transforms + [('with_column', name, expr)],
-                      self._source_columns)
+        return Stream(
+            self._source_factory,
+            new_cols,
+            new_schema,
+            self._transforms + [("with_column", name, expr)],
+            self._source_columns,
+        )
 
     def select(self, *columns: str) -> Stream:
         """Add a column selection step to the pipeline.
@@ -488,9 +503,13 @@ class Stream:
             >>> stream.select("id", "value")  # doctest: +SKIP
         """
         new_schema = self._schema.select(list(columns))
-        return Stream(self._source_factory, list(columns), new_schema,
-                      self._transforms + [('select', list(columns))],
-                      self._source_columns)
+        return Stream(
+            self._source_factory,
+            list(columns),
+            new_schema,
+            self._transforms + [("select", list(columns))],
+            self._source_columns,
+        )
 
     def apply(self, func: Callable, columns: list[str] | None = None) -> Stream:
         """Apply a function to column values in the stream.
@@ -502,9 +521,13 @@ class Stream:
         Returns:
             A new Stream with the function applied.
         """
-        return Stream(self._source_factory, self._columns, self._schema,
-                      self._transforms + [('apply', func, columns)],
-                      self._source_columns)
+        return Stream(
+            self._source_factory,
+            self._columns,
+            self._schema,
+            self._transforms + [("apply", func, columns)],
+            self._source_columns,
+        )
 
     def _build_processor(self):
         col_map = {n: i for i, n in enumerate(self._source_columns)}
@@ -516,33 +539,33 @@ class Stream:
         for transform in self._transforms:
             kind = transform[0]
 
-            if kind == 'filter':
+            if kind == "filter":
                 pred = transform[1]
                 frozen_map = dict(current_map)
-                steps.append(('filter', pred, frozen_map))
+                steps.append(("filter", pred, frozen_map))
 
-            elif kind == 'with_column':
+            elif kind == "with_column":
                 name, expr = transform[1], transform[2]
                 frozen_map = dict(current_map)
-                steps.append(('with_column', expr, frozen_map))
+                steps.append(("with_column", expr, frozen_map))
                 current_cols.append(name)
                 current_map[name] = len(current_cols) - 1
 
-            elif kind == 'select':
+            elif kind == "select":
                 cols = transform[1]
                 frozen_map = dict(current_map)
                 indices = [frozen_map[c] for c in cols]
-                steps.append(('select', indices))
+                steps.append(("select", indices))
                 current_cols = list(cols)
                 current_map = {c: i for i, c in enumerate(current_cols)}
 
-            elif kind == 'apply':
+            elif kind == "apply":
                 func, target_cols = transform[1], transform[2]
                 if target_cols:
                     target_indices = {current_map[c] for c in target_cols}
                 else:
                     target_indices = None
-                steps.append(('apply', func, target_indices))
+                steps.append(("apply", func, target_indices))
 
         return steps, current_cols
 
@@ -555,41 +578,42 @@ class Stream:
 
             for step in steps:
                 kind = step[0]
-                if kind == 'filter':
+                if kind == "filter":
                     _, pred, cm = step
                     if not pred.eval(current, cm):
                         skip = True
                         break
-                elif kind == 'with_column':
+                elif kind == "with_column":
                     _, expr, cm = step
                     current = current + (expr.eval(current, cm),)
-                elif kind == 'select':
+                elif kind == "select":
                     _, indices = step
                     current = tuple(current[i] for i in indices)
-                elif kind == 'apply':
+                elif kind == "apply":
                     _, func, targets = step
                     if targets is None:
                         current = tuple(func(v) for v in current)
                     else:
-                        current = tuple(func(v) if i in targets else v for i, v in enumerate(current))
+                        current = tuple(
+                            func(v) if i in targets else v for i, v in enumerate(current)
+                        )
 
             if not skip:
                 yield current
 
     def collect(self):
-        """Execute the pipeline and return a materialized Floe.
+        """Execute the pipeline and return a materialized LazyFrame.
 
         Examples:
-            >>> ff = Stream.from_iter(gen()).filter(col("x") > 5).collect()  # doctest: +SKIP
-            >>> isinstance(ff, Floe)  # doctest: +SKIP
+            >>> lf = Stream.from_iter(gen()).filter(col("x") > 5).collect()  # doctest: +SKIP
+            >>> isinstance(lf, LazyFrame)  # doctest: +SKIP
             True
         """
-        from .core import Floe
+        from .core import LazyFrame
+
         _, out_cols = self._build_processor()
         rows = list(self._execute())
-        return Floe._from_plan(
-            ScanNode(rows, out_cols, self._schema)
-        )
+        return LazyFrame._from_plan(ScanNode(rows, out_cols, self._schema))
 
     def to_pylist(self) -> list[dict]:
         """Execute the pipeline and return results as a list of dicts.
@@ -601,8 +625,9 @@ class Stream:
         _, out_cols = self._build_processor()
         return [{out_cols[i]: v for i, v in enumerate(row)} for row in self._execute()]
 
-    def to_csv(self, path: str, *, delimiter: str = ',',
-               header: bool = True, encoding: str = 'utf-8'):
+    def to_csv(
+        self, path: str, *, delimiter: str = ",", header: bool = True, encoding: str = "utf-8"
+    ):
         """Execute the pipeline and stream results to a CSV file.
 
         Rows are written one-at-a-time with constant memory.
@@ -617,14 +642,14 @@ class Stream:
             >>> Stream.from_iter(gen()).filter(col("score") > 50).to_csv("/tmp/out.csv")  # doctest: +SKIP
         """
         _, out_cols = self._build_processor()
-        with open(path, 'w', encoding=encoding, newline='') as f:
+        with open(path, "w", encoding=encoding, newline="") as f:
             writer = csv.writer(f, delimiter=delimiter)
             if header:
                 writer.writerow(out_cols)
             for row in self._execute():
                 writer.writerow(row)
 
-    def to_jsonl(self, path: str, *, encoding: str = 'utf-8'):
+    def to_jsonl(self, path: str, *, encoding: str = "utf-8"):
         """Execute the pipeline and stream results to a JSON Lines file.
 
         Args:
@@ -635,10 +660,10 @@ class Stream:
             >>> Stream.from_iter(gen()).filter(col("ts") > 10).to_jsonl("/tmp/out.jsonl")  # doctest: +SKIP
         """
         _, out_cols = self._build_processor()
-        with open(path, 'w', encoding=encoding) as f:
+        with open(path, "w", encoding=encoding) as f:
             for row in self._execute():
                 obj = {out_cols[i]: v for i, v in enumerate(row)}
-                f.write(json.dumps(obj, default=str) + '\n')
+                f.write(json.dumps(obj, default=str) + "\n")
 
     def foreach(self, func: Callable[[dict], None]):
         """Execute the pipeline and call a function for each row.
@@ -675,10 +700,7 @@ class Stream:
             [{'x': 0}, {'x': 1}, {'x': 2}]
         """
         _, out_cols = self._build_processor()
-        return [
-            {out_cols[j]: v for j, v in enumerate(row)}
-            for row in islice(self._execute(), n)
-        ]
+        return [{out_cols[j]: v for j, v in enumerate(row)} for row in islice(self._execute(), n)]
 
     @property
     def columns(self) -> list[str]:
@@ -694,4 +716,4 @@ class Stream:
     def __repr__(self):
         _, out_cols = self._build_processor()
         n_steps = len(self._transforms)
-        return f'Stream [{", ".join(out_cols)}] ({n_steps} transforms)'
+        return f"Stream [{', '.join(out_cols)}] ({n_steps} transforms)"

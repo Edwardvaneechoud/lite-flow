@@ -1,9 +1,9 @@
-"""Tests for streaming data into Floe."""
+"""Tests for streaming data into LazyFrame."""
 import os
 import tempfile
 import tracemalloc
 
-from pyfloe import Floe, Stream, col, from_chunks, from_iter, when
+from pyfloe import LazyFrame, Stream, col, from_chunks, from_iter, when
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
@@ -13,9 +13,9 @@ def test_from_iter_with_dict_generator():
         for i in range(100):
             yield {"id": i, "value": i * 1.5}
 
-    ff = from_iter(gen())
-    assert ff.columns == ["id", "value"]
-    result = ff.to_pylist()
+    lf = from_iter(gen())
+    assert lf.columns == ["id", "value"]
+    result = lf.to_pylist()
     assert len(result) == 100
     assert result[0] == {"id": 0, "value": 0.0}
 
@@ -24,8 +24,8 @@ def test_from_iter_schema_inference_from_dicts():
         for i in range(100):
             yield {"id": i, "value": i * 1.5, "name": f"item_{i}"}
 
-    ff = from_iter(gen())
-    s = ff.schema
+    lf = from_iter(gen())
+    s = lf.schema
     assert s.dtypes["id"] is int
     assert s.dtypes["value"] is float
     assert s.dtypes["name"] is str
@@ -35,10 +35,10 @@ def test_from_iter_with_tuple_generator_explicit_schema():
         for i in range(50):
             yield (i, f"row_{i}", i * 2.0)
 
-    ff = from_iter(gen(), columns=["id", "name", "score"],
+    lf = from_iter(gen(), columns=["id", "name", "score"],
                    dtypes={"id": int, "name": str, "score": float})
-    assert ff.columns == ["id", "name", "score"]
-    result = ff.to_pylist()
+    assert lf.columns == ["id", "name", "score"]
+    result = lf.to_pylist()
     assert len(result) == 50
     assert result[0] == {"id": 0, "name": "row_0", "score": 0.0}
 
@@ -49,9 +49,9 @@ def test_from_iter_with_objects():
             self.y = y
 
     items = [Item(1, "a"), Item(2, "b"), Item(3, "c")]
-    ff = from_iter(iter(items))
-    assert ff.columns == ["x", "y"]
-    result = ff.to_pylist()
+    lf = from_iter(iter(items))
+    assert lf.columns == ["x", "y"]
+    result = lf.to_pylist()
     assert len(result) == 3
 
 def test_from_iter_is_lazy():
@@ -62,10 +62,10 @@ def test_from_iter_is_lazy():
             call_count[0] += 1
             yield {"id": i}
 
-    ff = from_iter(gen())
+    lf = from_iter(gen())
     # Only 10 items peeked for schema inference
     assert call_count[0] == 10
-    assert not ff.is_materialized
+    assert not lf.is_materialized
 
 def test_from_iter_filter_pipeline():
     def gen():
@@ -89,9 +89,9 @@ def test_from_iter_with_factory_replayable():
         for i in range(50):
             yield {"x": i}
 
-    ff = from_iter(make_data, columns=["x"], dtypes={"x": int})
-    r1 = ff.to_pylist()
-    r2 = ff.to_pylist()
+    lf = from_iter(make_data, columns=["x"], dtypes={"x": int})
+    r1 = lf.to_pylist()
+    r2 = lf.to_pylist()
     assert r1 == r2
     assert len(r1) == 50
 
@@ -103,22 +103,22 @@ def test_from_iter_factory_replays_for_collect():
         for i in range(20):
             yield {"v": i}
 
-    ff = from_iter(make_data)
-    ff.to_pylist()
-    ff.to_pylist()
+    lf = from_iter(make_data)
+    lf.to_pylist()
+    lf.to_pylist()
     # Factory called: once for peek, once per to_pylist
     assert call_count[0] >= 2
 
 def test_from_iter_with_list_re_iterable():
     data = [{"a": 1}, {"a": 2}, {"a": 3}]
-    ff = from_iter(data)
-    assert ff.to_pylist() == data
-    assert ff.to_pylist() == data  # re-iterable
+    lf = from_iter(data)
+    assert lf.to_pylist() == data
+    assert lf.to_pylist() == data  # re-iterable
 
 def test_from_iter_with_range_of_tuples():
-    ff = from_iter(((i, i**2) for i in range(10)),
+    lf = from_iter(((i, i**2) for i in range(10)),
                    columns=["n", "sq"], dtypes={"n": int, "sq": int})
-    result = ff.to_pylist()
+    result = lf.to_pylist()
     assert len(result) == 10
     assert result[4] == {"n": 4, "sq": 16}
 
@@ -127,15 +127,15 @@ def test_from_iter_one_shot_generator_exhaustion():
         for i in range(5):
             yield {"x": i}
 
-    ff = from_iter(gen())
-    r1 = ff.to_pylist()
+    lf = from_iter(gen())
+    r1 = lf.to_pylist()
     assert len(r1) == 5
     # Data is now cached in _materialized, so second to_pylist() returns from cache
-    r2 = ff.to_pylist()
+    r2 = lf.to_pylist()
     assert r2 == r1  # cached
 
     # But if we bypass the cache by re-executing the plan, the generator is gone
-    r3 = list(ff._plan.execute())
+    r3 = list(lf._plan.execute())
     assert len(r3) == 0  # one-shot: factory is exhausted
 
 
@@ -148,8 +148,8 @@ def test_from_chunks_with_list_of_dict_batches():
         [{"id": 3, "v": "c"}],
         [{"id": 4, "v": "d"}, {"id": 5, "v": "e"}],
     ]
-    ff = from_chunks(iter(chunks))
-    result = ff.to_pylist()
+    lf = from_chunks(iter(chunks))
+    result = lf.to_pylist()
     assert len(result) == 5
     assert result[0] == {"id": 1, "v": "a"}
 
@@ -158,8 +158,8 @@ def test_from_chunks_schema_inference():
         [{"x": 1, "y": 3.14}, {"x": 2, "y": 2.71}],
         [{"x": 3, "y": 1.0}],
     ]
-    ff = from_chunks(iter(chunks))
-    s = ff.schema
+    lf = from_chunks(iter(chunks))
+    s = lf.schema
     assert s.dtypes["x"] is int
     assert s.dtypes["y"] is float
 
@@ -169,9 +169,9 @@ def test_from_chunks_with_factory_replayable():
         yield [{"n": 3}, {"n": 4}]
         yield [{"n": 5}]
 
-    ff = from_chunks(make_chunks)
-    r1 = ff.to_pylist()
-    r2 = ff.to_pylist()
+    lf = from_chunks(make_chunks)
+    r1 = lf.to_pylist()
+    r2 = lf.to_pylist()
     assert r1 == r2
     assert len(r1) == 5
 
@@ -189,9 +189,9 @@ def test_from_chunks_filter_pipeline():
     assert len(result) == 24  # ids 76..99
 
 def test_from_chunks_with_floe_chunks():
-    ff1 = Floe([{"a": 1}, {"a": 2}])
-    ff2 = Floe([{"a": 3}, {"a": 4}])
-    combined = from_chunks(iter([ff1, ff2]), columns=["a"], dtypes={"a": int})
+    lf1 = LazyFrame([{"a": 1}, {"a": 2}])
+    lf2 = LazyFrame([{"a": 3}, {"a": 4}])
+    combined = from_chunks(iter([lf1, lf2]), columns=["a"], dtypes={"a": int})
     result = combined.to_pylist()
     assert len(result) == 4
 
@@ -200,8 +200,8 @@ def test_from_chunks_with_tuple_batches():
         [(1, "x"), (2, "y")],
         [(3, "z")],
     ]
-    ff = from_chunks(iter(chunks), columns=["id", "label"])
-    result = ff.to_pylist()
+    lf = from_chunks(iter(chunks), columns=["id", "label"])
+    result = lf.to_pylist()
     assert len(result) == 3
     assert result[0] == {"id": 1, "label": "x"}
 
@@ -262,8 +262,8 @@ def test_stream_to_csv_sink():
         path = f.name
     try:
         Stream.from_iter(gen()).filter(col("score") > 50).to_csv(path)
-        ff = read_csv(path)
-        result = ff.to_pylist()
+        lf = read_csv(path)
+        result = lf.to_pylist()
         assert all(r["score"] > 50 for r in result)
     finally:
         os.unlink(path)
@@ -314,9 +314,9 @@ def test_stream_collect_returns_floe():
         for i in range(10):
             yield {"x": i}
 
-    ff = Stream.from_iter(gen()).filter(col("x") > 5).collect()
-    assert isinstance(ff, Floe)
-    assert len(ff) == 4
+    lf = Stream.from_iter(gen()).filter(col("x") > 5).collect()
+    assert isinstance(lf, LazyFrame)
+    assert len(lf) == 4
 
 def test_stream_from_csv():
     path = os.path.join(os.path.dirname(__file__), 'test_data', 'orders.csv')

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from pyfloe.core import Floe
+from pyfloe.core import LazyFrame
 from pyfloe.expr import Col
 
 
 @pytest.fixture
 def long_data():
-    return Floe([
+    return LazyFrame([
         {'name': 'Alice', 'subject': 'math', 'score': 90},
         {'name': 'Alice', 'subject': 'english', 'score': 85},
         {'name': 'Bob', 'subject': 'math', 'score': 78},
@@ -18,7 +18,7 @@ def long_data():
 
 @pytest.fixture
 def wide_data():
-    return Floe([
+    return LazyFrame([
         {'name': 'Alice', 'math': 90, 'english': 85},
         {'name': 'Bob', 'math': 78, 'english': 92},
     ])
@@ -35,11 +35,11 @@ def test_basic_pivot_explicit_columns(long_data):
 
 
 def test_pivot_schema_lazy_with_columns(long_data):
-    ff = long_data.pivot(
+    lf = long_data.pivot(
         index='name', on='subject', values='score',
         columns=['math', 'english'],
     )
-    schema = ff.schema
+    schema = lf.schema
     assert 'name' in schema
     assert 'math' in schema
     assert 'english' in schema
@@ -59,7 +59,7 @@ def test_pivot_auto_discovers_columns(long_data):
 
 
 def test_pivot_sum_aggregation():
-    data = Floe([
+    data = LazyFrame([
         {'city': 'NY', 'product': 'A', 'sales': 10},
         {'city': 'NY', 'product': 'A', 'sales': 20},
         {'city': 'NY', 'product': 'B', 'sales': 5},
@@ -75,7 +75,7 @@ def test_pivot_sum_aggregation():
 
 
 def test_pivot_missing_combinations_are_none(long_data):
-    extra = Floe([
+    extra = LazyFrame([
         {'name': 'Alice', 'subject': 'math', 'score': 90},
         {'name': 'Bob', 'subject': 'english', 'score': 92},
     ])
@@ -100,8 +100,8 @@ def test_basic_unpivot(wide_data):
 
 
 def test_unpivot_schema_is_lazy(wide_data):
-    ff = wide_data.unpivot(id_columns='name', value_columns=['math', 'english'])
-    schema = ff.schema
+    lf = wide_data.unpivot(id_columns='name', value_columns=['math', 'english'])
+    schema = lf.schema
     assert schema.column_names == ['name', 'variable', 'value']
     assert schema['variable'].dtype is str
     assert schema['value'].dtype is int
@@ -150,11 +150,11 @@ def test_unpivot_explain(wide_data):
 
 
 def test_filter_pushdown_through_pivot(long_data):
-    ff = long_data.pivot(
+    lf = long_data.pivot(
         index='name', on='subject', values='score',
         columns=['math', 'english'],
     ).filter(Col('name') == 'Alice')
-    optimized_plan = ff.explain(optimized=True)
+    optimized_plan = lf.explain(optimized=True)
     lines = optimized_plan.strip().split('\n')
     pivot_line = None
     filter_line = None
@@ -168,10 +168,10 @@ def test_filter_pushdown_through_pivot(long_data):
 
 
 def test_filter_pushdown_through_unpivot(wide_data):
-    ff = wide_data.unpivot(
+    lf = wide_data.unpivot(
         id_columns='name', value_columns=['math', 'english'],
     ).filter(Col('name') == 'Bob')
-    optimized_plan = ff.explain(optimized=True)
+    optimized_plan = lf.explain(optimized=True)
     lines = optimized_plan.strip().split('\n')
     unpivot_line = None
     filter_line = None
@@ -185,7 +185,7 @@ def test_filter_pushdown_through_unpivot(wide_data):
 
 
 def test_multi_index_pivot():
-    data = Floe([
+    data = LazyFrame([
         {'region': 'East', 'year': 2023, 'product': 'A', 'sales': 10},
         {'region': 'East', 'year': 2023, 'product': 'B', 'sales': 20},
         {'region': 'East', 'year': 2024, 'product': 'A', 'sales': 30},

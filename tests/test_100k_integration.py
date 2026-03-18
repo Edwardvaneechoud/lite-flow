@@ -11,7 +11,7 @@ import random
 import pytest
 
 from pyfloe import (
-    Floe,
+    LazyFrame,
     Stream,
     col,
     from_iter,
@@ -68,13 +68,13 @@ def customers_csv(data_dir):
 
 @pytest.fixture()
 def orders(orders_csv):
-    """Fresh lazy Floe from orders CSV (not shared across tests)."""
+    """Fresh lazy LazyFrame from orders CSV (not shared across tests)."""
     return read_csv(orders_csv)
 
 
 @pytest.fixture()
 def customers(customers_csv):
-    """Fresh lazy Floe from customers CSV."""
+    """Fresh lazy LazyFrame from customers CSV."""
     return read_csv(customers_csv)
 
 
@@ -381,7 +381,7 @@ class TestOptimizer:
         assert opt_result.columns == unopt_result.columns
 
     def test_optimized_and_unoptimized_same_values(self, orders_csv, customers_csv):
-        """Use fresh Floes to ensure independent execution paths."""
+        """Use fresh LazyFrames to ensure independent execution paths."""
         def build_pipeline():
             return (
                 read_csv(orders_csv)
@@ -433,7 +433,7 @@ class TestReprLifecycle:
     def test_lazy_repr(self, orders):
         lazy = orders.filter(col("amount") > 999)
         r = repr(lazy)
-        assert "lazy" in r.lower() or "Floe" in r
+        assert "lazy" in r.lower() or "LazyFrame" in r
 
     def test_materialized_repr(self, orders):
         flow = orders.filter(col("amount") > 999)
@@ -509,7 +509,7 @@ class TestEdgeCases:
     def test_group_by_single_group(self):
         data = [{"group": "A", "val": i} for i in range(100)]
         result = (
-            Floe(data)
+            LazyFrame(data)
             .group_by("group")
             .agg(col("val").sum().alias("total"))
             .collect()

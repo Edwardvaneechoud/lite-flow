@@ -1,12 +1,12 @@
-# Floe
+# LazyFrame
 
-The `Floe` is the central object in pyfloe. It represents a lazy dataframe — operations build a query plan without executing it. Data flows only when you trigger evaluation with `.collect()`, `.to_pylist()`, `.to_csv()`, or similar methods.
+The `LazyFrame` is the central object in pyfloe. It represents a lazy dataframe — operations build a query plan without executing it. Data flows only when you trigger evaluation with `.collect()`, `.to_pylist()`, `.to_csv()`, or similar methods.
 
 ---
 
-## Floe
+## LazyFrame
 
-::: pyfloe.Floe
+::: pyfloe.LazyFrame
     options:
       show_root_heading: true
       show_signature: true
@@ -22,11 +22,11 @@ The `Floe` is the central object in pyfloe. It represents a lazy dataframe — o
 
 ---
 
-## TypedFloe
+## TypedLazyFrame
 
-The `TypedFloe` wraps a Floe with a known row type (a `TypedDict`), enabling static type checkers and IDEs to infer the shape of results from `.to_pylist()`.
+The `TypedLazyFrame` wraps a LazyFrame with a known row type (a `TypedDict`), enabling static type checkers and IDEs to infer the shape of results from `.to_pylist()`.
 
-::: pyfloe.TypedFloe
+::: pyfloe.TypedLazyFrame
     options:
       show_root_heading: true
       show_signature: true
@@ -41,11 +41,11 @@ The `TypedFloe` wraps a Floe with a known row type (a `TypedDict`), enabling sta
 
 ---
 
-## GroupByBuilder
+## LazyGroupBy
 
-The `GroupByBuilder` is created by calling `Floe.group_by()`. Call `.agg()` on it to specify aggregation expressions and produce the grouped result.
+The `LazyGroupBy` is created by calling `LazyFrame.group_by()`. Call `.agg()` on it to specify aggregation expressions and produce the grouped result.
 
-::: pyfloe.GroupByBuilder
+::: pyfloe.LazyGroupBy
     options:
       show_root_heading: true
       show_signature: true

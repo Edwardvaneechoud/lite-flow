@@ -1,6 +1,6 @@
 # Datetime Support
 
-Floe auto-detects datetime columns when reading CSV files and provides a full `.dt` accessor for extraction, truncation, arithmetic, and formatting — all using Python's stdlib `datetime` module.
+LazyFrame auto-detects datetime columns when reading CSV files and provides a full `.dt` accessor for extraction, truncation, arithmetic, and formatting — all using Python's stdlib `datetime` module.
 
 ## Auto-detection from CSV
 
@@ -21,7 +21,7 @@ Detection works by sampling the first 100 rows. If ≥80% of non-empty values in
 ```python
 from datetime import datetime
 
-ff = Floe([
+ff = LazyFrame([
     {"id": 1, "ts": datetime(2024, 1, 15, 10, 0), "val": 100},
     {"id": 2, "ts": datetime(2024, 6, 20, 14, 30), "val": 200},
 ])
@@ -120,6 +120,6 @@ All `.dt` methods return `None` for null inputs:
 
 ```python
 data = [{"ts": datetime(2024, 1, 15)}, {"ts": None}]
-Floe(data).with_column("month", col("ts").dt.month()).to_pylist()
+LazyFrame(data).with_column("month", col("ts").dt.month()).to_pylist()
 # [{"ts": ..., "month": 1}, {"ts": None, "month": None}]
 ```

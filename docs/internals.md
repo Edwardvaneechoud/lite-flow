@@ -4,7 +4,7 @@ This section describes the algorithms behind each major subsystem. Everything is
 
 ## Execution model: volcano / iterator
 
-Floe uses the **volcano model** (also called the iterator model or Graefe model), the same execution strategy used by most SQL databases. Each plan node implements an `execute()` method that returns a Python iterator. When a parent node asks for data, it calls `execute()` on its child, which calls its child, and so on down to the leaf (data source). Rows are pulled up one at a time through the tree.
+LazyFrame uses the **volcano model** (also called the iterator model or Graefe model), the same execution strategy used by most SQL databases. Each plan node implements an `execute()` method that returns a Python iterator. When a parent node asks for data, it calls `execute()` on its child, which calls its child, and so on down to the leaf (data source). Rows are pulled up one at a time through the tree.
 
 ```
 to_pylist() calls → FilterNode.execute()
@@ -19,7 +19,7 @@ Rows are never buffered between stages unless an operation requires it (sort, gr
 
 ## Join: hash join vs sort-merge join
 
-Floe provides two join algorithms, chosen via the `sorted=` parameter:
+LazyFrame provides two join algorithms, chosen via the `sorted=` parameter:
 
 **Hash join** (default): materializes the right table into a hash map keyed on join columns, then streams the left table probing the map.
 
@@ -52,7 +52,7 @@ For a streaming pipeline like `read_csv("sorted_log.csv").join(lookup, on="key",
 
 ## Aggregation: hash vs sorted streaming
 
-Like joins, Floe provides two aggregation strategies:
+Like joins, LazyFrame provides two aggregation strategies:
 
 **Hash aggregation** (default): groups rows into a `dict` keyed by group columns, maintaining **running accumulators** per group. Unlike a naive implementation that stores all rows per group, this stores only the accumulator state (a running sum, count, min, etc.), so memory is O(k) where k = number of groups, not O(n).
 
@@ -216,7 +216,7 @@ for row in source():
     writer.writerow(row)
 ```
 
-No intermediate iterators or plan-tree overhead — ~30% faster than the Floe pipeline for pure streaming.
+No intermediate iterators or plan-tree overhead — ~30% faster than the LazyFrame pipeline for pure streaming.
 
 ## Data representation
 
@@ -268,7 +268,7 @@ pyfloe/
 ├── schema.py    (154 lines)  LazySchema, ColumnSchema — type propagation
 ├── expr.py      (740 lines)  Expression AST — col, lit, when, .str, .dt, aggregations, windows
 ├── plan.py      (660 lines)  Plan nodes + optimizer (volcano model)
-├── core.py      (518 lines)  Floe, TypedFloe, GroupByBuilder
+├── core.py      (518 lines)  LazyFrame, TypedLazyFrame, LazyGroupBy
 ├── io.py        (610 lines)  File readers/writers — CSV, TSV, JSONL, JSON, Parquet
 ├── stream.py    (649 lines)  from_iter, from_chunks, Stream pipeline
 └── __init__.py  (56 lines)   Public API

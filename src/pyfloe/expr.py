@@ -17,7 +17,7 @@ class Agg:
     """Aggregation function names for use with ``pivot(agg=...)`` and group-by.
 
     Examples:
-        >>> ff.pivot(index="name", on="subject", values="score", agg=Agg.sum)
+        >>> lf.pivot(index="name", on="subject", values="score", agg=Agg.sum)
     """
     sum: AggFunc = 'sum'
     mean: AggFunc = 'mean'
@@ -167,8 +167,8 @@ class Expr:
             A boolean expression that is True for None values.
 
         Examples:
-            >>> ff = Floe([{"x": 1}, {"x": None}])  # doctest: +SKIP
-            >>> ff.filter(col("x").is_null()).to_pylist()  # doctest: +SKIP
+            >>> lf = LazyFrame([{"x": 1}, {"x": None}])  # doctest: +SKIP
+            >>> lf.filter(col("x").is_null()).to_pylist()  # doctest: +SKIP
             [{'x': None}]
         """
         return UnaryExpr(self, lambda x: x is None, 'is_null')
@@ -180,8 +180,8 @@ class Expr:
             A boolean expression that is True for non-None values.
 
         Examples:
-            >>> ff = Floe([{"x": 1}, {"x": None}])  # doctest: +SKIP
-            >>> ff.filter(col("x").is_not_null()).to_pylist()  # doctest: +SKIP
+            >>> lf = LazyFrame([{"x": 1}, {"x": None}])  # doctest: +SKIP
+            >>> lf.filter(col("x").is_not_null()).to_pylist()  # doctest: +SKIP
             [{'x': 1}]
         """
         return UnaryExpr(self, lambda x: x is not None, 'is_not_null')
@@ -196,8 +196,8 @@ class Expr:
             A boolean expression.
 
         Examples:
-            >>> ff = Floe([{"r": "EU"}, {"r": "US"}, {"r": "AP"}])  # doctest: +SKIP
-            >>> ff.filter(col("r").is_in(["EU", "US"])).to_pylist()  # doctest: +SKIP
+            >>> lf = LazyFrame([{"r": "EU"}, {"r": "US"}, {"r": "AP"}])  # doctest: +SKIP
+            >>> lf.filter(col("r").is_in(["EU", "US"])).to_pylist()  # doctest: +SKIP
             [{'r': 'EU'}, {'r': 'US'}]
         """
         s = frozenset(values)
@@ -636,7 +636,7 @@ class AggExpr(Expr):
             order_by: Column name(s) to order by within each partition.
 
         Returns:
-            A WindowExpr for use with :meth:`~pyfloe.Floe.with_column`.
+            A WindowExpr for use with :meth:`~pyfloe.LazyFrame.with_column`.
 
         Examples:
             >>> col("amount").sum().over(partition_by="region")  # doctest: +SKIP
@@ -813,9 +813,9 @@ class StringAccessor:
     ``.upper()``, ``.lower()``, ``.contains()``, ``.replace()``, etc.
 
     Examples:
-        >>> from pyfloe import Floe, col
-        >>> ff = Floe([{"name": "Alice"}, {"name": "Bob"}])
-        >>> ff.with_column("upper", col("name").str.upper()).to_pylist()
+        >>> from pyfloe import LazyFrame, col
+        >>> lf = LazyFrame([{"name": "Alice"}, {"name": "Bob"}])
+        >>> lf.with_column("upper", col("name").str.upper()).to_pylist()
         [{'name': 'Alice', 'upper': 'ALICE'}, {'name': 'Bob', 'upper': 'BOB'}]
     """
 
@@ -877,8 +877,8 @@ class StringAccessor:
             A boolean expression.
 
         Examples:
-            >>> ff = Floe([{"product": "Widget A"}, {"product": "Gadget B"}])  # doctest: +SKIP
-            >>> ff.filter(col("product").str.contains("Widget")).to_pylist()  # doctest: +SKIP
+            >>> lf = LazyFrame([{"product": "Widget A"}, {"product": "Gadget B"}])  # doctest: +SKIP
+            >>> lf.filter(col("product").str.contains("Widget")).to_pylist()  # doctest: +SKIP
             [{'product': 'Widget A'}]
         """
         return self._unary(lambda x: pat in x if isinstance(x, str) else False, f'str.contains("{pat}")')
@@ -919,8 +919,8 @@ class StringAccessor:
             new: Replacement string.
 
         Examples:
-            >>> ff = Floe([{"name": "Widget A"}])  # doctest: +SKIP
-            >>> ff.with_column("renamed", col("name").str.replace("Widget", "Gadget")).to_pylist()  # doctest: +SKIP
+            >>> lf = LazyFrame([{"name": "Widget A"}])  # doctest: +SKIP
+            >>> lf.with_column("renamed", col("name").str.replace("Widget", "Gadget")).to_pylist()  # doctest: +SKIP
             [{'name': 'Widget A', 'renamed': 'Gadget A'}]
         """
         return self._unary(lambda x: x.replace(old, new) if isinstance(x, str) else x, f'str.replace("{old}","{new}")')
@@ -933,8 +933,8 @@ class StringAccessor:
             end: End index (exclusive).
 
         Examples:
-            >>> ff = Floe([{"name": "Alice"}])  # doctest: +SKIP
-            >>> ff.with_column("first3", col("name").str.slice(0, 3)).to_pylist()  # doctest: +SKIP
+            >>> lf = LazyFrame([{"name": "Alice"}])  # doctest: +SKIP
+            >>> lf.with_column("first3", col("name").str.slice(0, 3)).to_pylist()  # doctest: +SKIP
             [{'name': 'Alice', 'first3': 'Ali'}]
         """
         return self._unary(lambda x: x[start:end] if isinstance(x, str) else x, f'str[{start}:{end}]')
@@ -950,10 +950,10 @@ class DateTimeAccessor:
     All methods handle None values gracefully, returning None.
 
     Examples:
-        >>> from pyfloe import Floe, col
+        >>> from pyfloe import LazyFrame, col
         >>> from datetime import datetime
-        >>> ff = Floe([{"ts": datetime(2024, 1, 15, 8, 30)}])
-        >>> ff.with_column("year", col("ts").dt.year()).to_pylist()
+        >>> lf = LazyFrame([{"ts": datetime(2024, 1, 15, 8, 30)}])
+        >>> lf.with_column("year", col("ts").dt.year()).to_pylist()
         [{'ts': datetime.datetime(2024, 1, 15, 8, 30), 'year': 2024}]
     """
 
@@ -1075,8 +1075,8 @@ class DateTimeAccessor:
             Truncate to month:
 
             >>> from datetime import datetime
-            >>> ff = Floe([{"ts": datetime(2024, 3, 15, 14, 30)}])  # doctest: +SKIP
-            >>> ff.with_column("mo", col("ts").dt.truncate("month")).to_pylist()  # doctest: +SKIP
+            >>> lf = LazyFrame([{"ts": datetime(2024, 3, 15, 14, 30)}])  # doctest: +SKIP
+            >>> lf.with_column("mo", col("ts").dt.truncate("month")).to_pylist()  # doctest: +SKIP
             [{'ts': ..., 'mo': datetime.datetime(2024, 3, 1, 0, 0)}]
 
         Raises:
@@ -1280,9 +1280,9 @@ def col(name: str) -> Col:
         name: The column name to reference.
 
     Examples:
-        >>> from pyfloe import Floe, col
-        >>> ff = Floe([{"x": 10, "y": 20}])
-        >>> ff.with_column("total", col("x") + col("y")).to_pylist()
+        >>> from pyfloe import LazyFrame, col
+        >>> lf = LazyFrame([{"x": 10, "y": 20}])
+        >>> lf.with_column("total", col("x") + col("y")).to_pylist()
         [{'x': 10, 'y': 20, 'total': 30}]
     """
     return Col(name)
@@ -1296,9 +1296,9 @@ def lit(value) -> Lit:
         value: The constant value.
 
     Examples:
-        >>> from pyfloe import Floe, col, lit
-        >>> ff = Floe([{"x": 10}])
-        >>> ff.filter(col("x") > lit(5)).to_pylist()
+        >>> from pyfloe import LazyFrame, col, lit
+        >>> lf = LazyFrame([{"x": 10}])
+        >>> lf.filter(col("x") > lit(5)).to_pylist()
         [{'x': 10}]
     """
     return Lit(value)
@@ -1310,10 +1310,10 @@ def rank() -> RankExpr:
     Use with ``.over()`` to specify partitioning and ordering.
 
     Examples:
-        >>> from pyfloe import Floe, rank
+        >>> from pyfloe import LazyFrame, rank
         >>> data = [{"name": "a", "score": 10}, {"name": "b", "score": 20},
         ...         {"name": "c", "score": 20}, {"name": "d", "score": 30}]
-        >>> Floe(data).with_column("r", rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
+        >>> LazyFrame(data).with_column("r", rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
         [{'name': 'a', 'score': 10, 'r': 1}, {'name': 'b', 'score': 20, 'r': 2}, {'name': 'c', 'score': 20, 'r': 2}, {'name': 'd', 'score': 30, 'r': 4}]
     """
     return RankExpr('rank')
@@ -1325,10 +1325,10 @@ def dense_rank() -> RankExpr:
     (e.g. 1, 2, 2, 3).
 
     Examples:
-        >>> from pyfloe import Floe, dense_rank
+        >>> from pyfloe import LazyFrame, dense_rank
         >>> data = [{"name": "a", "score": 10}, {"name": "b", "score": 20},
         ...         {"name": "c", "score": 20}, {"name": "d", "score": 30}]
-        >>> Floe(data).with_column("dr", dense_rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
+        >>> LazyFrame(data).with_column("dr", dense_rank().over(order_by="score")).to_pylist()  # doctest: +SKIP
         [{'name': 'a', ..., 'dr': 1}, {'name': 'b', ..., 'dr': 2}, {'name': 'c', ..., 'dr': 2}, {'name': 'd', ..., 'dr': 3}]
     """
     return RankExpr('dense_rank')
@@ -1340,9 +1340,9 @@ def row_number() -> RankExpr:
     starting at 1.
 
     Examples:
-        >>> from pyfloe import Floe, row_number
+        >>> from pyfloe import LazyFrame, row_number
         >>> data = [{"region": "EU", "amount": 100}, {"region": "EU", "amount": 200}]
-        >>> Floe(data).with_column("rn",
+        >>> LazyFrame(data).with_column("rn",
         ...     row_number().over(partition_by="region", order_by="amount")
         ... ).to_pylist()  # doctest: +SKIP
         [{'region': 'EU', 'amount': 100, 'rn': 1}, {'region': 'EU', 'amount': 200, 'rn': 2}]
@@ -1363,9 +1363,9 @@ def when(condition: Expr, then_val) -> WhenExpr:
         A WhenExpr that can be chained with ``.when()`` and ``.otherwise()``.
 
     Examples:
-        >>> from pyfloe import Floe, col, when
-        >>> ff = Floe([{"amount": 250}, {"amount": 75}, {"amount": 150}])
-        >>> ff.with_column("size",
+        >>> from pyfloe import LazyFrame, col, when
+        >>> lf = LazyFrame([{"amount": 250}, {"amount": 75}, {"amount": 150}])
+        >>> lf.with_column("size",
         ...     when(col("amount") > 200, "large")
         ...     .when(col("amount") > 100, "medium")
         ...     .otherwise("small")

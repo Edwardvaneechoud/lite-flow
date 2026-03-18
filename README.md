@@ -5,7 +5,7 @@
 pyfloe is a pure-Python dataframe library with lazy evaluation, query optimization, and type safety — no external dependencies required.
 
 ```python
-from pyfloe import Floe, read_csv, col, row_number
+from pyfloe import LazyFrame, read_csv, col, row_number
 
 result = (
     read_csv("orders.csv")
@@ -32,7 +32,7 @@ pip install pyfloe
 - **Datetime handling** — auto-detection from CSV, `.dt` accessor for extraction, truncation, and arithmetic
 - **Streaming I/O** — read and write CSV, TSV, JSONL, JSON, and fixed-width files with constant memory
 - **Query optimizer** — filter pushdown and column pruning
-- **Type safety** — TypedDict validation and `TypedFloe` for IDE-friendly typed results
+- **Type safety** — TypedDict validation and `TypedLazyFrame` for IDE-friendly typed results
 
 ## Documentation
 

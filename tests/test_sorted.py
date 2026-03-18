@@ -3,7 +3,7 @@ import os
 import tempfile
 from datetime import date, datetime, timedelta
 
-from pyfloe import Floe, col, read_csv
+from pyfloe import LazyFrame, col, read_csv
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'test_data')
 
@@ -12,49 +12,49 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), 'test_data')
 # ═══════════════════════════════════════════════════════════
 
 def test_detect_datetime_column_in_csv_space_separated():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    s = ff.schema
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    s = lf.schema
     assert s.dtypes['ts'] is datetime, f"Expected datetime, got {s.dtypes['ts']}"
     assert s.dtypes['event_id'] is int
     assert s.dtypes['amount'] is float
 
 def test_datetime_values_parsed_correctly():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.to_pylist()
     ts = result[0]['ts']
     assert isinstance(ts, datetime), f"Expected datetime, got {type(ts)}: {ts}"
     assert ts == datetime(2024, 1, 15, 8, 30, 0)
 
 def test_detect_date_only_column_in_csv():
-    ff = read_csv(f'{DATA_DIR}/orders_dates.csv')
-    s = ff.schema
+    lf = read_csv(f'{DATA_DIR}/orders_dates.csv')
+    s = lf.schema
     assert s.dtypes['order_date'] is datetime
     assert s.dtypes['ship_date'] is datetime
     assert s.dtypes['total'] is float
 
 def test_date_only_values_parsed_as_datetime():
-    ff = read_csv(f'{DATA_DIR}/orders_dates.csv')
-    result = ff.to_pylist()
+    lf = read_csv(f'{DATA_DIR}/orders_dates.csv')
+    result = lf.to_pylist()
     d = result[0]['order_date']
     assert isinstance(d, datetime)
     assert d == datetime(2024, 1, 15)
 
 def test_schema_stays_lazy_with_datetime_columns():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    _ = ff.schema
-    assert not ff.is_materialized
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    _ = lf.schema
+    assert not lf.is_materialized
 
 def test_non_datetime_string_columns_not_misdetected():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    s = ff.schema
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    s = lf.schema
     assert s.dtypes['event'] is str  # "login", "purchase" — not datetimes
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
 
 def test_dt_year_dt_month_dt_day():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_columns(
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_columns(
         year=col("ts").dt.year(),
         month=col("ts").dt.month(),
         day=col("ts").dt.day(),
@@ -65,8 +65,8 @@ def test_dt_year_dt_month_dt_day():
     assert r['day'] == 15
 
 def test_dt_hour_dt_minute_dt_second():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_columns(
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_columns(
         hour=col("ts").dt.hour(),
         minute=col("ts").dt.minute(),
         second=col("ts").dt.second(),
@@ -77,8 +77,8 @@ def test_dt_hour_dt_minute_dt_second():
     assert r['second'] == 30
 
 def test_dt_weekday_dt_isoweekday():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_columns(
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_columns(
         wd=col("ts").dt.weekday(),
         iwd=col("ts").dt.isoweekday(),
     ).to_pylist()
@@ -87,8 +87,8 @@ def test_dt_weekday_dt_isoweekday():
     assert result[0]['iwd'] == 1    # Monday = 1 in isoweekday()
 
 def test_dt_day_name_dt_month_name():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_columns(
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_columns(
         day_name=col("ts").dt.day_name(),
         month_name=col("ts").dt.month_name(),
     ).to_pylist()
@@ -96,8 +96,8 @@ def test_dt_day_name_dt_month_name():
     assert result[0]['month_name'] == 'January'
 
 def test_dt_quarter():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("q", col("ts").dt.quarter()).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("q", col("ts").dt.quarter()).to_pylist()
     assert result[0]['q'] == 1   # January → Q1
     assert result[2]['q'] == 1   # February → Q1
     assert result[3]['q'] == 1   # March → Q1
@@ -106,74 +106,74 @@ def test_dt_quarter():
     assert result[8]['q'] == 4   # December → Q4
 
 def test_dt_week_iso_week_number():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("wk", col("ts").dt.week()).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("wk", col("ts").dt.week()).to_pylist()
     # 2024-01-15 is ISO week 3
     assert result[0]['wk'] == 3
 
 def test_dt_day_of_year():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("doy", col("ts").dt.day_of_year()).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("doy", col("ts").dt.day_of_year()).to_pylist()
     assert result[0]['doy'] == 15  # Jan 15
 
 def test_dt_strftime():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("formatted", col("ts").dt.strftime("%Y/%m/%d")).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("formatted", col("ts").dt.strftime("%Y/%m/%d")).to_pylist()
     assert result[0]['formatted'] == '2024/01/15'
     assert result[8]['formatted'] == '2024/12/25'
 
 def test_dt_date_extraction():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("d", col("ts").dt.date()).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("d", col("ts").dt.date()).to_pylist()
     assert result[0]['d'] == date(2024, 1, 15)
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
 
 def test_dt_truncate_year():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("yr", col("ts").dt.truncate("year")).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("yr", col("ts").dt.truncate("year")).to_pylist()
     assert result[0]['yr'] == datetime(2024, 1, 1)
 
 def test_dt_truncate_month():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("mo", col("ts").dt.truncate("month")).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("mo", col("ts").dt.truncate("month")).to_pylist()
     assert result[0]['mo'] == datetime(2024, 1, 1)   # Jan
     assert result[2]['mo'] == datetime(2024, 2, 1)   # Feb
 
 def test_dt_truncate_day():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("d", col("ts").dt.truncate("day")).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("d", col("ts").dt.truncate("day")).to_pylist()
     assert result[1]['d'] == datetime(2024, 1, 15)  # strips time
 
 def test_dt_truncate_hour():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("h", col("ts").dt.truncate("hour")).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("h", col("ts").dt.truncate("hour")).to_pylist()
     assert result[1]['h'] == datetime(2024, 1, 15, 9, 0, 0)
 
 # ═══════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════
 
 def test_dt_add_days():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("later", col("ts").dt.add_days(7)).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("later", col("ts").dt.add_days(7)).to_pylist()
     orig = result[0]['ts']
     later = result[0]['later']
     assert later - orig == timedelta(days=7)
 
 def test_dt_add_hours():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("shifted", col("ts").dt.add_hours(3)).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("shifted", col("ts").dt.add_hours(3)).to_pylist()
     assert result[0]['shifted'] == datetime(2024, 1, 15, 11, 30, 0)
 
 def test_dt_add_minutes():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("shifted", col("ts").dt.add_minutes(45)).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("shifted", col("ts").dt.add_minutes(45)).to_pylist()
     assert result[0]['shifted'] == datetime(2024, 1, 15, 9, 15, 0)
 
 def test_dt_add_seconds():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv')
-    result = ff.with_column("shifted", col("ts").dt.add_seconds(90)).to_pylist()
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv')
+    result = lf.with_column("shifted", col("ts").dt.add_seconds(90)).to_pylist()
     assert result[0]['shifted'] == datetime(2024, 1, 15, 8, 31, 30)
 
 # ═══════════════════════════════════════════════════════════
@@ -266,10 +266,10 @@ def test_datetime_objects_in_floe_constructor():
         {"id": 2, "ts": datetime(2024, 3, 20, 14, 30), "val": 200},
         {"id": 3, "ts": datetime(2024, 6, 1, 8, 0), "val": 300},
     ]
-    ff = Floe(data)
-    s = ff.schema
+    lf = LazyFrame(data)
+    s = lf.schema
     assert s.dtypes['ts'] is datetime
-    result = ff.with_column("month", col("ts").dt.month()).to_pylist()
+    result = lf.with_column("month", col("ts").dt.month()).to_pylist()
     assert [r['month'] for r in result] == [1, 3, 6]
 
 def test_datetime_schema_propagation_through_pipeline():
@@ -278,7 +278,7 @@ def test_datetime_schema_propagation_through_pipeline():
         {"id": 2, "ts": datetime(2024, 3, 20, 14, 30)},
     ]
     pipeline = (
-        Floe(data)
+        LazyFrame(data)
         .with_column("year", col("ts").dt.year())
         .with_column("day_name", col("ts").dt.day_name())
         .select("id", "year", "day_name")
@@ -294,8 +294,8 @@ def test_datetime_null_handling():
         {"id": 2, "ts": None},
         {"id": 3, "ts": datetime(2024, 6, 1)},
     ]
-    ff = Floe(data)
-    result = ff.with_column("month", col("ts").dt.month()).to_pylist()
+    lf = LazyFrame(data)
+    result = lf.with_column("month", col("ts").dt.month()).to_pylist()
     assert result[0]['month'] == 1
     assert result[1]['month'] is None
     assert result[2]['month'] == 6
@@ -309,7 +309,7 @@ def test_lag_on_datetime_column():
         {"id": 2, "ts": datetime(2024, 1, 15)},
         {"id": 3, "ts": datetime(2024, 1, 20)},
     ]
-    result = Floe(data).with_column("prev_ts",
+    result = LazyFrame(data).with_column("prev_ts",
         col("ts").lag(1).over(order_by="id")
     ).to_pylist()
     assert result[0]['prev_ts'] is None
@@ -322,7 +322,7 @@ def test_row_number_ordered_by_datetime():
         {"id": 3, "ts": datetime(2024, 2, 1)},
     ]
     from pyfloe import row_number
-    result = Floe(data).with_column("rn",
+    result = LazyFrame(data).with_column("rn",
         row_number().over(order_by="ts")
     ).to_pylist()
     earliest = [r for r in result if r['rn'] == 1][0]
@@ -332,14 +332,14 @@ def test_row_number_ordered_by_datetime():
 # ═══════════════════════════════════════════════════════════
 
 def test_datetime_survives_csv_write_read_roundtrip():
-    ff = read_csv(f'{DATA_DIR}/events_dt.csv').select("event_id", "ts")
+    lf = read_csv(f'{DATA_DIR}/events_dt.csv').select("event_id", "ts")
     with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as f:
         path = f.name
     try:
-        ff.to_csv(path)
-        ff2 = read_csv(path)
-        assert ff2.schema.dtypes['ts'] is datetime
-        result = ff2.to_pylist()
+        lf.to_csv(path)
+        lf2 = read_csv(path)
+        assert lf2.schema.dtypes['ts'] is datetime
+        result = lf2.to_pylist()
         assert result[0]['ts'] == datetime(2024, 1, 15, 8, 30)
     finally:
         os.unlink(path)
