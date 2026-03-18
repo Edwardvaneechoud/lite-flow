@@ -46,7 +46,8 @@ nav:
     - Expressions: api/expressions.md
     - File I/O: api/io.md
     - Streaming: api/streaming.md
-    - Schema & Optimizer: api/schema.md
+    - Schema: api/schema.md
+    - Query Plan & Optimizer: api/plan.md
   - Internals: internals.md
 
 markdown_extensions:
