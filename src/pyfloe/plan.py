@@ -142,7 +142,12 @@ class ScanNode(PlanNode):
 
     def _explain_self(self) -> str:
         n = len(self._data)
-        return f"Scan [{', '.join(self._columns)}] ({n} rows)"
+        cols = self._columns
+        if len(cols) <= 3:
+            col_str = ", ".join(cols)
+        else:
+            col_str = f"{', '.join(cols[:3])}, ... +{len(cols) - 3} more"
+        return f"Scan [{col_str}] ({n} rows)"
 
 
 class IteratorSourceNode(PlanNode):
@@ -180,7 +185,12 @@ class IteratorSourceNode(PlanNode):
         return _batched(self._factory())
 
     def _explain_self(self) -> str:
-        return f"{self._source_label} [{', '.join(self._columns)}]"
+        cols = self._columns
+        if len(cols) <= 3:
+            col_str = ", ".join(cols)
+        else:
+            col_str = f"{', '.join(cols[:3])}, ... +{len(cols) - 3} more"
+        return f"{self._source_label} [{col_str}]"
 
 
 class ProjectNode(PlanNode):
@@ -290,6 +300,51 @@ class FilterNode(PlanNode):
 
     def _explain_self(self) -> str:
         return f"Filter [{self.predicate}]"
+
+
+class LimitNode(PlanNode):
+    """Limits the number of rows passed through from its child.
+
+    This is the lazy equivalent of ``head(n)`` — it truncates the
+    output after *n* rows without materialising the upstream plan.
+
+    Args:
+        child: Input plan node.
+        n: Maximum number of rows to emit.
+    """
+
+    __slots__ = ("child", "n")
+
+    def __init__(self, child: PlanNode, n: int):
+        self.child = child
+        self.n = n
+
+    def schema(self) -> LazySchema:
+        return self.child.schema()
+
+    def execute_batched(self) -> Iterator[list[tuple]]:
+        remaining = self.n
+        for chunk in self.child.execute_batched():
+            if remaining <= 0:
+                return
+            if len(chunk) <= remaining:
+                remaining -= len(chunk)
+                yield chunk
+            else:
+                yield chunk[:remaining]
+                return
+
+    def fast_count(self) -> int | None:
+        child_count = self.child.fast_count()
+        if child_count is not None:
+            return min(self.n, child_count)
+        return None
+
+    def children(self) -> list[PlanNode]:
+        return [self.child]
+
+    def _explain_self(self) -> str:
+        return f"Limit [{self.n}]"
 
 
 class JoinNode(PlanNode):
@@ -1503,6 +1558,8 @@ class Optimizer:
                 node.right_on,
                 node.how,
             )
+        if isinstance(node, LimitNode):
+            return LimitNode(self._push_filters(node.child), node.n)
         if isinstance(node, SortNode):
             return SortNode(self._push_filters(node.child), node.by, node.ascending)
         if isinstance(node, WithColumnNode):
@@ -1599,6 +1656,9 @@ class Optimizer:
                 pruned_cols = node._columns
             child_needed = needed | set(pruned_cols)
             return ProjectNode(self._prune_columns(node.child, child_needed), pruned_cols)
+
+        if isinstance(node, LimitNode):
+            return LimitNode(self._prune_columns(node.child, needed), node.n)
 
         if isinstance(node, FilterNode):
             filter_needs = node.predicate.required_columns()

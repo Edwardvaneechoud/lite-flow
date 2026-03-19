@@ -43,14 +43,16 @@ def orders_csv(data_dir):
         w = csv.writer(f)
         w.writerow(["order_id", "customer_id", "product", "amount", "region", "segment"])
         for i in range(1, N_ROWS + 1):
-            w.writerow([
-                i,
-                rng.randint(1, 5000),
-                rng.choice(PRODUCTS),
-                round(rng.uniform(1.0, 1000.0), 2),
-                rng.choice(REGIONS),
-                rng.choice(SEGMENTS),
-            ])
+            w.writerow(
+                [
+                    i,
+                    rng.randint(1, 5000),
+                    rng.choice(PRODUCTS),
+                    round(rng.uniform(1.0, 1000.0), 2),
+                    rng.choice(REGIONS),
+                    rng.choice(SEGMENTS),
+                ]
+            )
     return path
 
 
@@ -89,7 +91,12 @@ class TestSchemaAndLaziness:
     def test_schema_columns(self, orders):
         schema = orders.schema
         assert schema.column_names == [
-            "order_id", "customer_id", "product", "amount", "region", "segment",
+            "order_id",
+            "customer_id",
+            "product",
+            "amount",
+            "region",
+            "segment",
         ]
 
     def test_schema_dtypes(self, orders):
@@ -124,12 +131,7 @@ class TestFilter:
         assert all(r["region"] == "EU" for r in eu)
 
     def test_chained_filters(self, orders):
-        result = (
-            orders
-            .filter(col("region") == lit("US"))
-            .filter(col("amount") > 200)
-            .collect()
-        )
+        result = orders.filter(col("region") == lit("US")).filter(col("amount") > 200).collect()
         assert all(r["region"] == "US" and r["amount"] > 200 for r in result)
 
     def test_filter_matches_nothing(self, orders):
@@ -148,10 +150,7 @@ class TestSelectAndWithColumn:
 
     def test_with_column_arithmetic(self, orders):
         enriched = (
-            orders
-            .select("order_id", "amount")
-            .with_column("tax", col("amount") * 0.2)
-            .collect()
+            orders.select("order_id", "amount").with_column("tax", col("amount") * 0.2).collect()
         )
         assert "tax" in enriched.columns
         for r in enriched.head(100):
@@ -159,8 +158,7 @@ class TestSelectAndWithColumn:
 
     def test_with_column_when_expression(self, orders):
         result = (
-            orders
-            .select("order_id", "amount")
+            orders.select("order_id", "amount")
             .with_column(
                 "size",
                 when(col("amount") > 500, "large")
@@ -183,20 +181,14 @@ class TestSelectAndWithColumn:
 
 class TestGroupBy:
     def test_group_by_region_count(self, orders):
-        stats = (
-            orders
-            .group_by("region")
-            .agg(col("order_id").count().alias("n"))
-            .collect()
-        )
+        stats = orders.group_by("region").agg(col("order_id").count().alias("n")).collect()
         assert len(stats) == len(REGIONS)
         total = sum(r["n"] for r in stats)
         assert total == N_ROWS
 
     def test_group_by_region_aggregations(self, orders):
         stats = (
-            orders
-            .group_by("region")
+            orders.group_by("region")
             .agg(
                 col("amount").sum().alias("total"),
                 col("amount").mean().alias("avg"),
@@ -214,18 +206,14 @@ class TestGroupBy:
 
     def test_multi_key_group_by(self, orders):
         multi = (
-            orders
-            .group_by("region", "segment")
-            .agg(col("amount").sum().alias("total"))
-            .collect()
+            orders.group_by("region", "segment").agg(col("amount").sum().alias("total")).collect()
         )
         assert len(multi) == len(REGIONS) * len(SEGMENTS)
 
     def test_group_by_then_filter(self, orders):
         """Filter after aggregation (pushdown candidate)."""
         result = (
-            orders
-            .group_by("product")
+            orders.group_by("product")
             .agg(col("amount").sum().alias("total"))
             .filter(col("product") == lit("Product_A"))
             .collect()
@@ -246,10 +234,7 @@ class TestJoin:
         assert "tier" in joined.columns
 
     def test_join_values_correct(self, orders, customers):
-        sample = (
-            orders
-            .head(100)
-        )
+        sample = orders.head(100)
         joined = sample.join(customers.collect(), on="customer_id", how="inner").collect()
         for r in joined:
             assert r["name"] == f"Customer_{r['customer_id']}"
@@ -269,12 +254,7 @@ class TestSort:
         assert amounts == sorted(amounts, reverse=True)
 
     def test_sort_ascending(self, orders):
-        result = (
-            orders
-            .select("order_id", "amount")
-            .sort("amount", ascending=True)
-            .collect()
-        )
+        result = orders.select("order_id", "amount").sort("amount", ascending=True).collect()
         amounts = [r["amount"] for r in result]
         assert amounts == sorted(amounts)
 
@@ -285,8 +265,7 @@ class TestSort:
 class TestWindow:
     def test_row_number_starts_at_1(self, orders):
         windowed = (
-            orders
-            .select("order_id", "amount", "region")
+            orders.select("order_id", "amount", "region")
             .with_column(
                 "rn",
                 row_number().over(partition_by="region", order_by="amount"),
@@ -302,8 +281,7 @@ class TestWindow:
 
     def test_row_number_is_contiguous(self, orders):
         windowed = (
-            orders
-            .select("order_id", "amount", "region")
+            orders.select("order_id", "amount", "region")
             .with_column(
                 "rn",
                 row_number().over(partition_by="region", order_by="amount"),
@@ -336,8 +314,7 @@ class TestHead:
 class TestChainedPipeline:
     def test_lazy_until_collect(self, orders):
         pipeline = (
-            orders
-            .filter(col("region") == lit("EU"))
+            orders.filter(col("region") == lit("EU"))
             .select("order_id", "amount", "product", "region")
             .with_column("discounted", col("amount") * 0.9)
             .sort("amount", ascending=False)
@@ -348,8 +325,7 @@ class TestChainedPipeline:
 
     def test_chained_pipeline_correctness(self, orders):
         result = (
-            orders
-            .filter(col("region") == lit("EU"))
+            orders.filter(col("region") == lit("EU"))
             .select("order_id", "amount", "product", "region")
             .with_column("discounted", col("amount") * 0.9)
             .sort("amount", ascending=False)
@@ -370,8 +346,7 @@ class TestChainedPipeline:
 class TestOptimizer:
     def test_optimized_and_unoptimized_same_length(self, orders, customers):
         pipeline = (
-            orders
-            .join(customers, on="customer_id")
+            orders.join(customers, on="customer_id")
             .filter(col("region") == lit("EU"))
             .select("order_id", "name", "amount", "region")
         )
@@ -382,6 +357,7 @@ class TestOptimizer:
 
     def test_optimized_and_unoptimized_same_values(self, orders_csv, customers_csv):
         """Use fresh LazyFrames to ensure independent execution paths."""
+
         def build_pipeline():
             return (
                 read_csv(orders_csv)
@@ -399,8 +375,7 @@ class TestOptimizer:
 
     def test_explain_plans_exist(self, orders, customers):
         pipeline = (
-            orders
-            .join(customers, on="customer_id")
+            orders.join(customers, on="customer_id")
             .filter(col("region") == lit("EU"))
             .select("order_id", "name", "amount", "region")
         )
@@ -411,6 +386,7 @@ class TestOptimizer:
 
     def test_filter_pushdown_correctness(self, orders_csv):
         """Filter pushdown through aggregation should produce identical results."""
+
         def build():
             return (
                 read_csv(orders_csv)
@@ -449,8 +425,7 @@ class TestCsvRoundTrip:
     def test_write_and_read_back(self, orders, data_dir):
         output = str(data_dir / "roundtrip.csv")
         stats = (
-            orders
-            .group_by("region")
+            orders.group_by("region")
             .agg(
                 col("amount").sum().alias("total"),
                 col("order_id").count().alias("n_orders"),
@@ -508,12 +483,7 @@ class TestStreaming:
 class TestEdgeCases:
     def test_group_by_single_group(self):
         data = [{"group": "A", "val": i} for i in range(100)]
-        result = (
-            LazyFrame(data)
-            .group_by("group")
-            .agg(col("val").sum().alias("total"))
-            .collect()
-        )
+        result = LazyFrame(data).group_by("group").agg(col("val").sum().alias("total")).collect()
         assert len(result) == 1
         assert result[0]["total"] == sum(range(100))
 

@@ -17,6 +17,7 @@ from .plan import (
     ExplodeNode,
     FilterNode,
     JoinNode,
+    LimitNode,
     Optimizer,
     PivotNode,
     PlanNode,
@@ -778,24 +779,24 @@ class LazyFrame:
             columns = [columns]
         return self.select(*columns)
 
-    def head(self, n: int = 5, optimize: bool = True) -> LazyFrame:
-        """Return the first n rows as a new materialized LazyFrame.
+    def head(self, n: int = 5) -> LazyFrame:
+        """Return a lazy view of the first *n* rows.
+
+        The upstream plan is **not** executed until the result is
+        materialised (e.g. via ``collect``, ``to_pylist``, etc.).
 
         Args:
-            n: Number of rows.
-            optimize: If True, run the query optimizer first.
+            n: Maximum number of rows to return.
 
         Returns:
-            A new materialized LazyFrame containing the first *n* rows.
+            A new LazyFrame with a ``Limit`` node in the plan.
 
         Examples:
             >>> lf = LazyFrame([{"x": i} for i in range(100)])
             >>> lf.head(3).to_pylist()
             [{'x': 0}, {'x': 1}, {'x': 2}]
         """
-        plan = self._exec_plan if optimize else self._plan
-        rows = list(islice(plan.execute(), n))
-        return LazyFrame._from_plan(ScanNode(rows, self.columns, self.schema))
+        return LazyFrame._from_plan(LimitNode(self._plan, n))
 
     def optimize(self) -> LazyFrame:
         """Return a new LazyFrame with an optimized query plan.
@@ -1019,10 +1020,7 @@ class LazyFrame:
         n = self._known_length
         if n is not None:
             return n
-        raise TypeError(
-            "len() requires materialized data. "
-            "Call .collect() first, or use .head(n) to peek at rows."
-        )
+        return len(self.collect().raw_data)
 
     def __getitem__(self, key: str | int | slice) -> LazyFrame | dict[str, Any]:
         if isinstance(key, str):
@@ -1216,8 +1214,8 @@ class TypedLazyFrame(LazyFrame, Generic[T]):
         result = super().sort(*args, **kwargs)
         return TypedLazyFrame._from_typed(result._plan, self._row_type, result._name)
 
-    def head(self, n: int = 5, optimize: bool = True) -> TypedLazyFrame[T]:
-        result = super().head(n, optimize)
+    def head(self, n: int = 5) -> TypedLazyFrame[T]:
+        result = super().head(n)
         return TypedLazyFrame._from_typed(result._plan, self._row_type, result._name)
 
     def __repr__(self) -> str:
