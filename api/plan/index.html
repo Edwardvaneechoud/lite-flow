@@ -1,0 +1,4514 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Zero-dependency, lazy dataframes for Python.">
+      
+      
+      
+        <link rel="canonical" href="https://edwardvaneechoud.github.io/pyfloe/api/plan/">
+      
+      
+        <link rel="prev" href="../schema/">
+      
+      
+        <link rel="next" href="../../internals/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Query Plan & Optimizer - pyfloe</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/api.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#query-plan-nodes" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="pyfloe" class="md-header__button md-logo" aria-label="pyfloe" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            pyfloe
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Query Plan & Optimizer
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Edwardvaneechoud/pyfloe" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Edwardvaneechoud/pyfloe
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../expressions/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../internals/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Internals
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="pyfloe" class="md-nav__button md-logo" aria-label="pyfloe" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    pyfloe
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Edwardvaneechoud/pyfloe" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Edwardvaneechoud/pyfloe
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../expressions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expressions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../datetime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Datetime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File I/O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../type-safety/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type Safety
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../floe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Floe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../expressions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Expressions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File I/O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Query Plan & Optimizer
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Query Plan & Optimizer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#plannode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PlanNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PlanNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PlanNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" PlanNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.execute_batched" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;execute_batched
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.fast_count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;fast_count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.children" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;children
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.explain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;explain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-source-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Source Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Source Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scannode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScanNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ScanNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ScanNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ScanNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iteratorsourcenode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IteratorSourceNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IteratorSourceNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.IteratorSourceNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;IteratorSourceNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transform-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transform Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transform Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#projectnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProjectNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ProjectNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ProjectNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ProjectNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filternode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FilterNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FilterNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.FilterNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;FilterNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#withcolumnnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WithColumnNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WithColumnNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.WithColumnNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WithColumnNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#applynode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ApplyNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ApplyNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ApplyNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ApplyNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renamenode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RenameNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RenameNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.RenameNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;RenameNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sortnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SortNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SortNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.SortNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SortNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#join-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Join Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Join Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#joinnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JoinNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="JoinNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.JoinNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;JoinNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sortedmergejoinnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SortedMergeJoinNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SortedMergeJoinNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.SortedMergeJoinNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SortedMergeJoinNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aggregation-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Aggregation Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Aggregation Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aggnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AggNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="AggNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.AggNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;AggNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sortedaggnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SortedAggNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SortedAggNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.SortedAggNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SortedAggNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reshape-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reshape Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reshape Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#explodenode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ExplodeNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExplodeNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ExplodeNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ExplodeNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unpivotnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnpivotNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UnpivotNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.UnpivotNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;UnpivotNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pivotnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PivotNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PivotNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PivotNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PivotNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#combine-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combine Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Combine Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#unionnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnionNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UnionNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.UnionNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;UnionNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#window-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Window Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Window Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#windownode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WindowNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WindowNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.WindowNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WindowNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optimizer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optimizer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Optimizer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.Optimizer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Optimizer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Optimizer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.Optimizer.optimize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;optimize
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#plannode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PlanNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PlanNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PlanNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" PlanNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;execute
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.execute_batched" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;execute_batched
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.fast_count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;fast_count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.children" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;children
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PlanNode.explain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;explain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-source-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Source Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Source Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scannode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScanNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ScanNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ScanNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ScanNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iteratorsourcenode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IteratorSourceNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IteratorSourceNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.IteratorSourceNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;IteratorSourceNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transform-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transform Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transform Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#projectnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProjectNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ProjectNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ProjectNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ProjectNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filternode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FilterNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FilterNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.FilterNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;FilterNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#withcolumnnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WithColumnNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WithColumnNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.WithColumnNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WithColumnNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#applynode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ApplyNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ApplyNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ApplyNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ApplyNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renamenode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RenameNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RenameNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.RenameNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;RenameNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sortnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SortNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SortNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.SortNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SortNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#join-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Join Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Join Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#joinnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JoinNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="JoinNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.JoinNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;JoinNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sortedmergejoinnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SortedMergeJoinNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SortedMergeJoinNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.SortedMergeJoinNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SortedMergeJoinNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aggregation-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Aggregation Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Aggregation Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aggnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AggNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="AggNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.AggNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;AggNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sortedaggnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SortedAggNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SortedAggNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.SortedAggNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SortedAggNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reshape-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reshape Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reshape Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#explodenode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ExplodeNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExplodeNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.ExplodeNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ExplodeNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unpivotnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnpivotNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UnpivotNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.UnpivotNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;UnpivotNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pivotnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PivotNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PivotNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.PivotNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PivotNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#combine-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combine Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Combine Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#unionnode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UnionNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UnionNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.UnionNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;UnionNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#window-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Window Nodes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Window Nodes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#windownode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WindowNode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WindowNode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.plan.WindowNode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WindowNode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optimizer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optimizer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Optimizer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.Optimizer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Optimizer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Optimizer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pyfloe.Optimizer.optimize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;optimize
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="query-plan-nodes">Query Plan Nodes<a class="headerlink" href="#query-plan-nodes" title="Permanent link">&para;</a></h1>
+<p>Internal plan node classes that form the query execution tree.  Each node implements the volcano / iterator model — data flows upward through the tree as parent nodes pull rows from their children.</p>
+<p>These classes are not part of the public API but are documented here for users who want to understand or extend the query engine internals.</p>
+<hr />
+<h2 id="plannode">PlanNode<a class="headerlink" href="#plannode" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="pyfloe.plan.PlanNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">PlanNode</span>
+
+
+<a href="#pyfloe.plan.PlanNode" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Abstract base class for all query plan nodes.</p>
+<p>Every node in the query plan tree inherits from <code>PlanNode</code> and
+implements the volcano / iterator execution model.  Data flows
+upward through the tree: a parent node pulls rows from its children
+by calling <code>execute()</code> or <code>execute_batched()</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            schema (pyfloe.plan.PlanNode.schema)" href="#pyfloe.plan.PlanNode.schema">schema</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Return the output schema of this node.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            execute (pyfloe.plan.PlanNode.execute)" href="#pyfloe.plan.PlanNode.execute">execute</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Yield rows one at a time by flattening batched output.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            execute_batched (pyfloe.plan.PlanNode.execute_batched)" href="#pyfloe.plan.PlanNode.execute_batched">execute_batched</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Yield rows in batches of up to <code>_BATCH_SIZE</code>.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            fast_count (pyfloe.plan.PlanNode.fast_count)" href="#pyfloe.plan.PlanNode.fast_count">fast_count</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Return the exact row count without executing, if known.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            children (pyfloe.plan.PlanNode.children)" href="#pyfloe.plan.PlanNode.children">children</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Return the direct child nodes of this plan node.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            explain (pyfloe.plan.PlanNode.explain)" href="#pyfloe.plan.PlanNode.explain">explain</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Return a human-readable representation of the plan tree.</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyfloe.plan.PlanNode.schema" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">schema</span>
+
+
+<a href="#pyfloe.plan.PlanNode.schema" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">schema</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">LazySchema</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the output schema of this node.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="            LazySchema (pyfloe.schema.LazySchema)" href="../schema/#pyfloe.LazySchema">LazySchema</a></code>
+          –
+          <div class="doc-md-description">
+            <p>The schema describing columns and types produced by this node.</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyfloe.plan.PlanNode.execute" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">execute</span>
+
+
+<a href="#pyfloe.plan.PlanNode.execute" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">execute</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Yield rows one at a time by flattening batched output.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><span title="collections.abc.Iterator">Iterator</span>[<span title="tuple">tuple</span>]</code>
+          –
+          <div class="doc-md-description">
+            <p>An iterator of tuples, each representing one row.</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyfloe.plan.PlanNode.execute_batched" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">execute_batched</span>
+
+
+<a href="#pyfloe.plan.PlanNode.execute_batched" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">execute_batched</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Yield rows in batches of up to <code>_BATCH_SIZE</code>.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><span title="collections.abc.Iterator">Iterator</span>[<span title="list">list</span>[<span title="tuple">tuple</span>]]</code>
+          –
+          <div class="doc-md-description">
+            <p>An iterator of lists, where each list contains up to 1024 row tuples.</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyfloe.plan.PlanNode.fast_count" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">fast_count</span>
+
+
+<a href="#pyfloe.plan.PlanNode.fast_count" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">fast_count</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the exact row count without executing, if known.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><span title="int">int</span> | None</code>
+          –
+          <div class="doc-md-description">
+            <p>The row count, or <code>None</code> if it cannot be determined cheaply.</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyfloe.plan.PlanNode.children" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">children</span>
+
+
+<a href="#pyfloe.plan.PlanNode.children" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">children</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">PlanNode</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the direct child nodes of this plan node.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a>]</code>
+          –
+          <div class="doc-md-description">
+            <p>A list of child <code>PlanNode</code> instances (empty for leaf nodes).</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyfloe.plan.PlanNode.explain" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">explain</span>
+
+
+<a href="#pyfloe.plan.PlanNode.explain" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">explain</span><span class="p">(</span><span class="n">indent</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return a human-readable representation of the plan tree.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>indent</code></b>
+              (<code><span title="int">int</span></code>, default:
+                  <code>0</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Current indentation level (used for recursive calls).</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><span title="str">str</span></code>
+          –
+          <div class="doc-md-description">
+            <p>A multi-line string showing this node and all descendants.</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="data-source-nodes">Data Source Nodes<a class="headerlink" href="#data-source-nodes" title="Permanent link">&para;</a></h2>
+<h3 id="scannode">ScanNode<a class="headerlink" href="#scannode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.ScanNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">ScanNode</span>
+
+
+<a href="#pyfloe.plan.ScanNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Leaf node that reads from an in-memory list of row tuples.</p>
+<p>This is the most common data source node, created when a <code>LazyFrame</code>
+is constructed from Python data.  It supports <code>fast_count</code> because
+the full dataset is already materialised.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>data</code></b>
+              (<code><span title="list">list</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>List of row tuples.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>columns</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Column names corresponding to tuple positions.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>lazy_schema</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            LazySchema (pyfloe.schema.LazySchema)" href="../schema/#pyfloe.LazySchema">LazySchema</a> | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Optional pre-computed schema; inferred from <em>data</em> if omitted.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="iteratorsourcenode">IteratorSourceNode<a class="headerlink" href="#iteratorsourcenode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.IteratorSourceNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">IteratorSourceNode</span>
+
+
+<a href="#pyfloe.plan.IteratorSourceNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Leaf node that reads from a lazily-evaluated iterator factory.</p>
+<p>Each call to <code>execute_batched</code> invokes the factory to produce a
+fresh iterator, enabling repeatable reads from streaming sources
+such as file readers.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>columns</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Column names for the produced rows.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>lazy_schema</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            LazySchema (pyfloe.schema.LazySchema)" href="../schema/#pyfloe.LazySchema">LazySchema</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Schema describing the output columns.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>iterator_factory</code></b>
+              (<code><span title="collections.abc.Callable">Callable</span>[[], <span title="collections.abc.Iterator">Iterator</span>[<span title="tuple">tuple</span>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>A zero-argument callable that returns an iterator of row tuples.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>source_label</code></b>
+              (<code><span title="str">str</span></code>, default:
+                  <code>&#39;Iterator&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Descriptive label shown in <code>explain</code> output.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="transform-nodes">Transform Nodes<a class="headerlink" href="#transform-nodes" title="Permanent link">&para;</a></h2>
+<h3 id="projectnode">ProjectNode<a class="headerlink" href="#projectnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.ProjectNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">ProjectNode</span>
+
+
+<a href="#pyfloe.plan.ProjectNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Selects or reorders columns, or evaluates computed expressions.</p>
+<p>When <em>columns</em> is provided, only those columns are kept (a SQL <code>SELECT</code>).
+When <em>exprs</em> is provided, each expression is evaluated to produce a new
+set of output columns.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>columns</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>] | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Column names to select.  Mutually exclusive with <em>exprs</em>.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>exprs</code></b>
+              (<code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            Expr (pyfloe.expr.Expr)" href="../expressions/#pyfloe.Expr">Expr</a>] | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Expressions to evaluate.  Mutually exclusive with <em>columns</em>.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="filternode">FilterNode<a class="headerlink" href="#filternode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.FilterNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">FilterNode</span>
+
+
+<a href="#pyfloe.plan.FilterNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Filters rows by evaluating a boolean predicate expression.</p>
+<p>Only rows for which <em>predicate</em> evaluates to a truthy value are
+passed through.  The output schema is unchanged.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>predicate</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            Expr (pyfloe.expr.Expr)" href="../expressions/#pyfloe.Expr">Expr</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Boolean expression used to filter rows.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="withcolumnnode">WithColumnNode<a class="headerlink" href="#withcolumnnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.WithColumnNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">WithColumnNode</span>
+
+
+<a href="#pyfloe.plan.WithColumnNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Appends a new computed column to the output.</p>
+<p>Evaluates <em>expr</em> for every row and adds the result as a new column
+named <em>name</em>.  The output schema is the parent schema plus the new
+column.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>name</code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name for the new column.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>expr</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            Expr (pyfloe.expr.Expr)" href="../expressions/#pyfloe.Expr">Expr</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Expression to evaluate for each row.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="applynode">ApplyNode<a class="headerlink" href="#applynode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.ApplyNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">ApplyNode</span>
+
+
+<a href="#pyfloe.plan.ApplyNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Applies a scalar function to one or more columns.</p>
+<p>When <em>columns</em> is provided, only those columns are transformed;
+otherwise <em>func</em> is applied to every value in every column.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>func</code></b>
+              (<code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Callable applied element-wise to each value.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>columns</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>] | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Columns to transform.  If <code>None</code>, all columns are transformed.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>output_dtype</code></b>
+              (<code><span title="type">type</span> | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Optional output type to record in the schema.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="renamenode">RenameNode<a class="headerlink" href="#renamenode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.RenameNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">RenameNode</span>
+
+
+<a href="#pyfloe.plan.RenameNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Renames columns without modifying data.</p>
+<p>A zero-cost metadata-only operation — the underlying rows are passed
+through unchanged, only the schema is updated.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>mapping</code></b>
+              (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Dictionary mapping old column names to new names.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="sortnode">SortNode<a class="headerlink" href="#sortnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.SortNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SortNode</span>
+
+
+<a href="#pyfloe.plan.SortNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Sorts all rows by one or more columns using Timsort.</p>
+<p>Materialises the full input before sorting.  Multi-column sorts
+are composed via sequential stable sorts in reverse priority order.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>by</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Column names to sort by.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>ascending</code></b>
+              (<code><span title="list">list</span>[<span title="bool">bool</span>] | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Sort direction per column.  Defaults to ascending for all.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="join-nodes">Join Nodes<a class="headerlink" href="#join-nodes" title="Permanent link">&para;</a></h2>
+<h3 id="joinnode">JoinNode<a class="headerlink" href="#joinnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.JoinNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">JoinNode</span>
+
+
+<a href="#pyfloe.plan.JoinNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Hash-based join of two input plan nodes.</p>
+<p>Materialises the right side into a hash table keyed on the join
+columns, then streams the left side and probes the table.
+Supports <code>inner</code>, <code>left</code>, and <code>full</code> join modes.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>left</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Left input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>right</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Right input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>left_on</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Join-key column names from the left side.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>right_on</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Join-key column names from the right side.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>how</code></b>
+              (<code><span title="pyfloe.expr.JoinHow">JoinHow</span></code>, default:
+                  <code>&#39;inner&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Join type — <code>'inner'</code>, <code>'left'</code>, or <code>'full'</code>.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="sortedmergejoinnode">SortedMergeJoinNode<a class="headerlink" href="#sortedmergejoinnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.SortedMergeJoinNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SortedMergeJoinNode</span>
+
+
+<a href="#pyfloe.plan.SortedMergeJoinNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Sort-merge join for pre-sorted inputs.</p>
+<p>Both inputs must be sorted on their respective join keys.  Two
+cursors advance in lockstep, emitting matches when keys are equal.
+Memory usage is O(1) for one-to-one joins and O(g) for groups with
+many-to-many matches.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>left</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Left input plan node (sorted by <em>left_on</em>).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>right</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Right input plan node (sorted by <em>right_on</em>).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>left_on</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Join-key column names from the left side.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>right_on</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Join-key column names from the right side.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>how</code></b>
+              (<code><span title="pyfloe.expr.JoinHow">JoinHow</span></code>, default:
+                  <code>&#39;inner&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Join type — <code>'inner'</code>, <code>'left'</code>, or <code>'full'</code>.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="aggregation-nodes">Aggregation Nodes<a class="headerlink" href="#aggregation-nodes" title="Permanent link">&para;</a></h2>
+<h3 id="aggnode">AggNode<a class="headerlink" href="#aggnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.AggNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">AggNode</span>
+
+
+<a href="#pyfloe.plan.AggNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Hash-based group-by aggregation node.</p>
+<p>Groups rows by <em>group_by</em> columns using a hash map and maintains
+running accumulators for each aggregation expression.  Memory usage
+is O(k) where k is the number of distinct groups.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>group_by</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Column names to group by.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>agg_exprs</code></b>
+              (<code><span title="list">list</span>[<span title="pyfloe.expr.AggExpr">AggExpr</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Aggregation expressions to evaluate per group.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="sortedaggnode">SortedAggNode<a class="headerlink" href="#sortedaggnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.SortedAggNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SortedAggNode</span>
+
+
+<a href="#pyfloe.plan.SortedAggNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Streaming group-by aggregation for pre-sorted input.</p>
+<p>Assumes the child yields rows already sorted by the <em>group_by</em>
+columns.  Groups are detected by key changes, so only one
+accumulator set is active at a time — O(1) memory per group.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node (must be pre-sorted by <em>group_by</em>).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>group_by</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Column names to group by.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>agg_exprs</code></b>
+              (<code><span title="list">list</span>[<span title="pyfloe.expr.AggExpr">AggExpr</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Aggregation expressions to evaluate per group.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="reshape-nodes">Reshape Nodes<a class="headerlink" href="#reshape-nodes" title="Permanent link">&para;</a></h2>
+<h3 id="explodenode">ExplodeNode<a class="headerlink" href="#explodenode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.ExplodeNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">ExplodeNode</span>
+
+
+<a href="#pyfloe.plan.ExplodeNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Unnests a list-valued column into separate rows.</p>
+<p>For each row, the list in <em>column</em> is expanded so that every element
+produces its own row.  <code>None</code> values pass through unchanged.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>column</code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name of the list-valued column to explode.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="unpivotnode">UnpivotNode<a class="headerlink" href="#unpivotnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.UnpivotNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">UnpivotNode</span>
+
+
+<a href="#pyfloe.plan.UnpivotNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Converts columns into rows (melt / unpivot).</p>
+<p>Keeps <em>id_columns</em> fixed and transforms each <em>value_columns</em> entry
+into a <code>(variable, value)</code> row pair, similar to pandas <code>melt</code>
+or SQL <code>UNPIVOT</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>id_columns</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Columns to keep as identifiers.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>value_columns</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Columns to unpivot into rows.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>variable_name</code></b>
+              (<code><span title="str">str</span></code>, default:
+                  <code>&#39;variable&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Name for the new column holding the original column names.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>value_name</code></b>
+              (<code><span title="str">str</span></code>, default:
+                  <code>&#39;value&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Name for the new column holding the values.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h3 id="pivotnode">PivotNode<a class="headerlink" href="#pivotnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.PivotNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">PivotNode</span>
+
+
+<a href="#pyfloe.plan.PivotNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Converts rows into columns (pivot / spread).</p>
+<p>Groups rows by <em>index</em> columns and spreads the distinct values in
+<em>on</em> into new columns, aggregating <em>values</em> with <em>agg_name</em>.
+Pivot columns are auto-discovered from the data unless <em>columns</em>
+is explicitly provided.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>index</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Columns to keep as the row index.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>on</code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Column whose distinct values become new column headers.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>values</code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Column containing the values to fill the pivoted cells.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>agg_name</code></b>
+              (<code><span title="pyfloe.expr.AggFunc">AggFunc</span></code>, default:
+                  <code>&#39;first&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Aggregation function applied when multiple values map to
+the same cell.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>columns</code></b>
+              (<code><span title="list">list</span>[<span title="str">str</span>] | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Explicit list of pivot columns.  Auto-discovered if <code>None</code>.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="combine-nodes">Combine Nodes<a class="headerlink" href="#combine-nodes" title="Permanent link">&para;</a></h2>
+<h3 id="unionnode">UnionNode<a class="headerlink" href="#unionnode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.UnionNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">UnionNode</span>
+
+
+<a href="#pyfloe.plan.UnionNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Concatenates rows from multiple input nodes (SQL <code>UNION ALL</code>).</p>
+<p>The output schema is taken from the first child.  All children
+must produce rows with compatible schemas.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>children_nodes</code></b>
+              (<code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>List of input plan nodes to concatenate.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="window-nodes">Window Nodes<a class="headerlink" href="#window-nodes" title="Permanent link">&para;</a></h2>
+<h3 id="windownode">WindowNode<a class="headerlink" href="#windownode" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h4 id="pyfloe.plan.WindowNode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">WindowNode</span>
+
+
+<a href="#pyfloe.plan.WindowNode" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code></p>
+
+
+
+        <p>Evaluates a window function and appends the result as a new column.</p>
+<p>Implements the sort-partition-scan pattern: materialises all rows,
+partitions by key columns, sorts within each partition, then computes
+the window expression (rank, cumulative, offset, or aggregate).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>child</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input plan node.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>window_expr</code></b>
+              (<code><span title="pyfloe.expr.WindowExpr">WindowExpr</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The window expression to evaluate.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>output_name</code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name for the new column containing window results.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><hr />
+<h2 id="optimizer">Optimizer<a class="headerlink" href="#optimizer" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="pyfloe.Optimizer" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Optimizer</span>
+
+
+<a href="#pyfloe.Optimizer" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Rule-based query optimizer.</p>
+<p>Applies two optimization passes to a query plan:</p>
+<ol>
+<li><strong>Filter pushdown</strong> — moves filter nodes closer to data sources,
+   reducing the number of rows processed by downstream operations.</li>
+<li><strong>Column pruning</strong> — removes unused columns early in the plan,
+   reducing memory usage.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="            optimize (pyfloe.Optimizer.optimize)" href="#pyfloe.Optimizer.optimize">optimize</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Apply all optimization passes to a plan tree.</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="pyfloe.Optimizer.optimize" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">optimize</span>
+
+
+<a href="#pyfloe.Optimizer.optimize" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">optimize</span><span class="p">(</span><span class="n">plan</span><span class="p">:</span> <span class="n">PlanNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PlanNode</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Apply all optimization passes to a plan tree.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>plan</code></b>
+              (<code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>Root node of the query plan to optimize.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="            PlanNode (pyfloe.plan.PlanNode)" href="#pyfloe.plan.PlanNode">PlanNode</a></code>
+          –
+          <div class="doc-md-description">
+            <p>A new, semantically equivalent plan tree with optimizations applied.</p>
+          </div>
+        </li>
+    </ul>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.suggest", "search.highlight", "content.tabs.link", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

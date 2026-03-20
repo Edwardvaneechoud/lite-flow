@@ -1,0 +1,43 @@
+/* ── Method / function signature ───────────────────────────────── */
+/* The separate_signature block rendered below the heading */
+.doc-signature {
+  font-size: 0.95em;
+  padding: 0.6em 1em;
+  background: var(--md-code-bg-color);
+  border-left: 3px solid var(--md-accent-fg-color);
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 1em;
+  overflow-x: auto;
+}
+
+/* ── Docstring section labels (Parameters, Returns, …) ────────── */
+.doc-section-title {
+  font-size: 0.85em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-accent-fg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  padding-bottom: 0.3em;
+  margin-top: 1.2em;
+  margin-bottom: 0.6em;
+}
+
+/* ── Parameter list items ─────────────────────────────────────── */
+.doc .doc-contents .field-body,
+.doc-md-description {
+  font-size: 0.92em;
+  line-height: 1.6;
+}
+
+/* Give each member card a subtle separator */
+.doc-object:not(:last-child) {
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  padding-bottom: 1.2em;
+  margin-bottom: 1.4em;
+}
+
+/* Tighten spacing between heading and signature */
+.doc-heading + .doc-signature {
+  margin-top: -0.3em;
+}
